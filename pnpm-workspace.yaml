@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalog:
+  '@types/node': ^25.3.3
+  drizzle-orm: ^0.45.1
+  tsx: ^4.21.0
+  zod: ^3.25.76

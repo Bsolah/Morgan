@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: morgan-postgres
+    environment:
+      POSTGRES_USER: morgan
+      POSTGRES_PASSWORD: morgan
+      POSTGRES_DB: morgan
+    ports:
+      - "5433:5432"
+    volumes:
+      - morgan_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U morgan -d morgan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: morgan-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - morgan_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  morgan_pg:
+  morgan_redis:
+
+networks:
+  default:
+    name: morgan-local

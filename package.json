@@ -1,0 +1,26 @@
+{
+  "name": "morgan",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||''; if(!ua.includes('pnpm')){console.error('Use pnpm instead'); process.exit(1);}\"",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck": "tsc --build",
+    "dev:api": "pnpm --filter @morgan/api_server run dev",
+    "db:push": "pnpm --filter @morgan/db run push",
+    "mobile:devices": "bash scripts/list-mobile-devices.sh",
+    "mobile:ios": "bash scripts/run-mobile-ios.sh",
+    "mobile:android": "bash scripts/run-mobile-android.sh",
+    "test": "pnpm -r --if-present run test",
+    "test:api": "pnpm --filter @morgan/integrations run test && pnpm --filter @morgan/api_server run test",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "issues:sprint-1": "bash scripts/create-sprint-1-issues.sh"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
+  }
+}

@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "10.12.1"
+  DATABASE_URL: postgresql://morgan:morgan@localhost:5433/morgan
+  REDIS_URL: redis://localhost:6380
+  JWT_SECRET: ci-jwt-secret-at-least-32-characters-long
+  SHOPIFY_API_SECRET: ci-shopify-secret-for-hmac-tests
+  BRONZE_STORAGE_PATH: ./data/bronze-ci
+
+jobs:
+  api:
+    name: API — typecheck & test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: morgan
+          POSTGRES_PASSWORD: morgan
+          POSTGRES_DB: morgan
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morgan -d morgan"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Push database schema
+        run: pnpm db:push
+
+      - name: Test integrations package
+        run: pnpm --filter @morgan/integrations run test
+
+      - name: Test API server
+        run: pnpm --filter @morgan/api_server run test
+
+  mobile:
+    name: Mobile — analyze & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.10"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: apps/mobile
+        run: flutter test
