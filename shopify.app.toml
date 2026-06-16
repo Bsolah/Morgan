@@ -1,0 +1,21 @@
+# Morgan — Shopify Partner app (unlisted, mobile-first OAuth)
+# https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "Morgan"
+client_id = "YOUR_SHOPIFY_API_KEY"
+application_url = "http://localhost:8080"
+embedded = false
+
+[access_scopes]
+scopes = "read_orders,read_products,read_inventory,read_locations,read_shopify_payments_payouts,read_customers"
+
+[auth]
+redirect_urls = [
+  "http://localhost:8080/api/v1/auth/shopify/callback"
+]
+
+[webhooks]
+api_version = "2024-10"
+
+[pos]
+embedded = false

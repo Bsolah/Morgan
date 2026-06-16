@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/auth/auth_providers.dart';
 import '../features/alerts/presentation/alerts_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -12,10 +13,32 @@ import '../shared/widgets/morgan_shell.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
+  final notifier = ValueNotifier(0);
+  ref.onDispose(notifier.dispose);
+  ref.listen(authSessionProvider, (previous, next) => notifier.value++);
+  return notifier;
+});
+
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authSessionProvider);
+  final refresh = ref.watch(_routerRefreshProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/onboarding',
+    refreshListenable: refresh,
+    redirect: (context, state) {
+      final isOnboarding = state.matchedLocation == '/onboarding';
+      final connected = authState.maybeWhen(
+        data: (session) => session?.isConnected ?? false,
+        orElse: () => false,
+      );
+
+      if (!connected && !isOnboarding) return '/onboarding';
+      if (connected && isOnboarding) return '/home';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/onboarding',

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Morgan design tokens — 4pt grid, single source of truth.
 abstract final class MorganSpace {
   static const double xxs = 4;
@@ -44,6 +46,3 @@ abstract final class MorganElevation {
         ),
       ];
 }
-
-// ignore: depend_on_referenced_packages
-import 'package:flutter/material.dart';

@@ -48,32 +48,35 @@
 
 ## EPIC-01: Authentication & Onboarding
 
-### US-01-01: Install app from Shopify App Store `P0`
+### US-01-01: Connect Shopify store from mobile app `P0`
 
 **As** Sam, a Shopify merchant,  
-**I want** to install Morgan from the Shopify App Store,  
-**So that** I can connect my store without creating a separate account.
+**I want** to connect my Shopify store from the Morgan mobile app,  
+**So that** I can start using Morgan without installing anything from the Shopify App Store.
 
 **Acceptance criteria:**
-- [ ] Merchant can find "Morgan" in Shopify App Store with listing title, screenshots, and privacy policy link
-- [ ] Install flow redirects to Shopify OAuth consent screen showing required scopes
-- [ ] On successful OAuth, merchant is redirected to Morgan onboarding (mobile deep link or embedded web)
+- [ ] Merchant downloads Morgan from the iOS App Store or Google Play (or TestFlight/internal build during beta)
+- [ ] Onboarding includes **Connect Shopify** — merchant enters `shop_domain` or signs in via Shopify
+- [ ] Connect flow opens Shopify OAuth consent screen (unlisted Partner app) showing required scopes
+- [ ] On successful OAuth, merchant returns to Morgan via universal link / app deep link (`morgan://onboarding` or equivalent)
 - [ ] A `store` record is created with `shop_domain`, `timezone`, `currency`, and `organization` linkage
 - [ ] OAuth access token is encrypted at rest in `integration_credentials`
 - [ ] Failed OAuth shows actionable error ("Connection failed — try again") without exposing internal errors
-- [ ] Re-installing on a previously uninstalled store creates a fresh sync run; historical data purged per `shop/redact` policy
+- [ ] Re-connecting a previously disconnected store creates a fresh sync run; historical data purged per `shop/redact` policy
+- [ ] Merchant does **not** need to find or install Morgan from the Shopify App Store for this flow to work
 
 ---
 
 ### US-01-02: Complete mobile onboarding `P0`
 
 **As** Sam,  
-**I want** a guided onboarding flow after install,  
+**I want** a guided onboarding flow after I download Morgan,  
 **So that** I understand what Morgan does and when I'll see value.
 
 **Acceptance criteria:**
-- [ ] Onboarding shows 3 screens max: Welcome → Connect confirmed → Sync in progress
-- [ ] Welcome screen states value prop: "Morgan — daily briefings and profit actions, not accounting"
+- [ ] Onboarding shows 4 steps max: Welcome → Connect Shopify → Connect confirmed → Sync in progress
+- [ ] Welcome screen states value prop: "Morgan — your AI CFO, not a dashboard"
+- [ ] Connect Shopify step is skippable only if store is already linked (returning user)
 - [ ] Sync screen shows progress: orders, products, inventory with % complete and ETA
 - [ ] Merchant can skip optional integration steps (Meta, Plaid) and proceed to home
 - [ ] Onboarding completes in <60 seconds of merchant interaction (excluding sync wait)
@@ -110,6 +113,22 @@
 - [ ] Selection persists in `merchant_finance_config`
 - [ ] Changing COGS method triggers metric recalculation within 1 hour
 - [ ] UI explains each method in plain language (≤2 sentences each)
+
+---
+
+### US-01-05: Install from Shopify App Store (optional distribution) `P1`
+
+**As** Sam, a Shopify merchant,  
+**I want** to discover and install Morgan from the Shopify App Store,  
+**So that** I can connect my store from Shopify Admin if I prefer that entry point.
+
+**Acceptance criteria:**
+- [ ] Merchant can find "Morgan" in Shopify App Store with listing title, screenshots, and privacy policy link
+- [ ] Install flow redirects to Shopify OAuth consent screen showing required scopes
+- [ ] On successful OAuth, merchant is redirected to Morgan onboarding (mobile deep link or lightweight embedded web bridge)
+- [ ] Same `store` record and encrypted `integration_credentials` behavior as US-01-01
+- [ ] Re-installing on a previously uninstalled store creates a fresh sync run; historical data purged per `shop/redact` policy
+- [ ] Listing is optional for MVP — unlisted Partner app + mobile connect (US-01-01) is sufficient for launch
 
 ---
 
@@ -1539,9 +1558,9 @@
 | **S3 (W5–6)** | US-03-01, 03-02, 03-03, 10-01, 10-02, 18-01–04, 18-05 |
 | **S4 (W7–8)** | US-11-01–04, 12-01–03, 16-01–04, 17-01, 17-02, 17-05, 20-01–02 |
 | **S5 (W9–10)** | US-23-01, 25-01, 25-02, 26-01–02, 27-01–02, 28-01–02, 30-01–04 |
-| **S6 (W11–12)** | US-15-01, 34-02, polish, App Store submission, load test |
+| **S6 (W11–12)** | US-15-01, 34-02, polish, iOS/Android store submission, load test |
 
-**P0 total: 52 stories**
+**P0 total: 52 stories** · **P1 includes US-01-05** (Shopify App Store listing — post-MVP)
 
 ---
 
@@ -1550,9 +1569,9 @@
 | Priority | Epics | Stories |
 |----------|-------|---------|
 | P0 (MVP) | 22 | 52 |
-| P1 (Growth) | 18 | 38 |
+| P1 (Growth) | 18 | 39 |
 | P2 (Scale) | 10 | 18 |
-| **Total** | **34** | **108** |
+| **Total** | **34** | **109** |
 
 ---
 
@@ -1576,7 +1595,8 @@ Every story is **Done** when:
 
 | Event | Trigger |
 |-------|---------|
-| `app_installed` | Shopify OAuth complete |
+| `app_installed` | Mobile app first open |
+| `shopify_connected` | Shopify OAuth complete |
 | `onboarding_completed` | Skip/finish onboarding |
 | `briefing_viewed` | Open home brief |
 | `briefing_push_opened` | Tap push notification |

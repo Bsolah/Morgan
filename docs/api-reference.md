@@ -32,13 +32,43 @@ Readiness probe. Returns 200 when Postgres and Redis are reachable; 503 otherwis
 
 ---
 
-## Authentication (stub)
+## Authentication
+
+### `GET /api/v1/auth/shopify/oauth/start`
+
+Starts Shopify OAuth for mobile or web. Redirects to Shopify consent screen.
+
+**Query params:**
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `shop` | Yes | Store domain or handle (`mystore` → `mystore.myshopify.com`) |
+| `platform` | No | `mobile` (default redirect: `morgan://onboarding`) or `web` |
+
+**Response:** `302` redirect to `https://{shop}/admin/oauth/authorize`
+
+### `GET /api/v1/auth/shopify/callback`
+
+Shopify OAuth callback. Exchanges code, provisions org/store/integration, then redirects:
+
+- **Mobile:** `morgan://onboarding?shopify=connected&connect_token=...`
+- **Error:** `morgan://onboarding?shopify_error=token_exchange_failed`
+
+Requires `DATABASE_URL`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `ENCRYPTION_KEY`.
 
 ### `POST /api/v1/auth/shopify/token-exchange`
 
-Exchange a Shopify session token for Morgan JWTs. **Stub** — accepts any non-empty `session_token` except `"invalid"`.
+Exchange a one-time `connect_token` (from OAuth callback) or dev `session_token` for Morgan JWTs.
 
-**Request:**
+**Request (production):**
+
+```json
+{
+  "connect_token": "<from deep link>"
+}
+```
+
+**Request (local dev fallback):**
 
 ```json
 {
@@ -93,11 +123,6 @@ Requires `Authorization: Bearer <access_token>`.
 }
 ```
 
-### `GET /api/v1/auth/shopify/callback`
-
-OAuth callback stub. Query params: `shop`, `code`.
-
----
 
 ## Webhooks
 

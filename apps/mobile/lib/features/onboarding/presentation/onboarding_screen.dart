@@ -1,136 +1,204 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/shopify/shopify_oauth.dart';
 import '../../../core/theme/morgan_colors.dart';
+import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_fade_in.dart';
+import '../../../shared/widgets/morgan_logo.dart';
+import '../../../shared/widgets/morgan_primary_button.dart';
 
-class OnboardingScreen extends StatelessWidget {
+enum _OnboardingStep { welcome, connecting, connected, error }
+
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: MorganColors.heroGradient),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: MorganColors.brandGradient,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'AI CFO FOR SHOPIFY',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ShaderMask(
-                  shaderCallback: (bounds) => MorganColors.brandGradient.createShader(bounds),
-                  child: Text(
-                    'Morgan',
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Your AI CFO for Shopify — daily briefings, profit actions, and answers grounded in your store data.',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: MorganColors.textSecondary,
-                    fontWeight: FontWeight.w400,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                const _StepRow(number: '1', title: 'Connect Shopify', subtitle: 'Install and sync your store'),
-                const SizedBox(height: 12),
-                const _StepRow(number: '2', title: 'Get your first brief', subtitle: 'Usually within 24 hours'),
-                const SizedBox(height: 12),
-                const _StepRow(number: '3', title: 'Act on recommendations', subtitle: 'Increase profit, reduce risk'),
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: MorganColors.brandGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x334F46E5),
-                          blurRadius: 16,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                      ),
-                      onPressed: () => context.go('/home'),
-                      child: const Text('Continue'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _StepRow extends StatelessWidget {
-  const _StepRow({required this.number, required this.title, required this.subtitle});
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  final _shopController = TextEditingController();
+  _OnboardingStep _step = _OnboardingStep.welcome;
+  String? _errorMessage;
+  String? _connectedShop;
 
-  final String number;
-  final String title;
-  final String subtitle;
+  @override
+  void dispose() {
+    _shopController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connectShopify() async {
+    final shop = normalizeShopInput(_shopController.text);
+    if (!isValidShopDomain(shop)) {
+      setState(() {
+        _step = _OnboardingStep.error;
+        _errorMessage = shopifyOAuthErrorMessages['invalid_shop'];
+      });
+      return;
+    }
+
+    setState(() {
+      _step = _OnboardingStep.connecting;
+      _errorMessage = null;
+    });
+
+    try {
+      final startUrl = buildShopifyOAuthStartUrl(shop);
+      final result = await FlutterWebAuth2.authenticate(
+        url: startUrl,
+        callbackUrlScheme: 'morgan',
+      );
+
+      final uri = Uri.parse(result);
+      final errorCode = uri.queryParameters['shopify_error'];
+      if (errorCode != null) {
+        setState(() {
+          _step = _OnboardingStep.error;
+          _errorMessage = shopifyOAuthErrorMessage(errorCode);
+        });
+        return;
+      }
+
+      final connectToken = uri.queryParameters['connect_token'];
+      if (connectToken == null || connectToken.isEmpty) {
+        setState(() {
+          _step = _OnboardingStep.error;
+          _errorMessage = shopifyOAuthErrorMessages['server_error'];
+        });
+        return;
+      }
+
+      final repo = ref.read(authRepositoryProvider);
+      final session = await repo.exchangeConnectToken(connectToken);
+
+      ref.invalidate(authSessionProvider);
+
+      setState(() {
+        _step = _OnboardingStep.connected;
+        _connectedShop = session.shopDomain;
+      });
+    } catch (_) {
+      setState(() {
+        _step = _OnboardingStep.error;
+        _errorMessage = shopifyOAuthErrorMessages['server_error'];
+      });
+    }
+  }
+
+  void _continueToHome() {
+    context.go('/home');
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            gradient: MorganColors.brandGradient,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            number,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
+    final p = context.morgan;
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: p.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: MorganColors.textPrimary)),
-              Text(subtitle, style: const TextStyle(color: MorganColors.textMuted)),
+              const SizedBox(height: MorganSpace.xxl),
+              MorganFadeIn(child: const MorganLogo(size: 56, showWordmark: true)),
+              const Spacer(),
+              if (_step == _OnboardingStep.welcome) ...[
+                MorganFadeIn(
+                  child: Text(
+                    'Your AI CFO',
+                    style: theme.textTheme.labelMedium?.copyWith(color: p.accent, letterSpacing: 1.4),
+                  ),
+                ),
+                const SizedBox(height: MorganSpace.sm),
+                MorganFadeIn(
+                  delay: const Duration(milliseconds: 80),
+                  child: Text(
+                    'Connect your\nShopify store',
+                    style: theme.textTheme.displayMedium,
+                  ),
+                ),
+                const SizedBox(height: MorganSpace.md),
+                MorganFadeIn(
+                  delay: const Duration(milliseconds: 120),
+                  child: Text(
+                    'Morgan syncs orders, products, and payouts to deliver your daily financial brief.',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                ),
+                const SizedBox(height: MorganSpace.xl),
+                MorganFadeIn(
+                  delay: const Duration(milliseconds: 160),
+                  child: TextField(
+                    controller: _shopController,
+                    textInputAction: TextInputAction.done,
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      labelText: 'Store domain',
+                      hintText: 'mystore.myshopify.com',
+                      filled: true,
+                      fillColor: p.surfaceMuted,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(MorganRadius.sm),
+                        borderSide: BorderSide(color: p.borderSubtle),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(MorganRadius.sm),
+                        borderSide: BorderSide(color: p.borderSubtle),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(MorganRadius.sm),
+                        borderSide: BorderSide(color: p.accent, width: 1.5),
+                      ),
+                    ),
+                    onSubmitted: (_) => _connectShopify(),
+                  ),
+                ),
+              ] else if (_step == _OnboardingStep.connecting) ...[
+                Text('Connecting to Shopify…', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: MorganSpace.md),
+                Text(
+                  'Complete sign-in in your browser, then you\'ll return here automatically.',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: MorganSpace.xl),
+                const Center(child: CircularProgressIndicator()),
+              ] else if (_step == _OnboardingStep.connected) ...[
+                Text('Store connected', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: MorganSpace.sm),
+                Text(
+                  _connectedShop ?? '',
+                  style: theme.textTheme.titleMedium?.copyWith(color: p.accent),
+                ),
+                const SizedBox(height: MorganSpace.md),
+                Text(
+                  'We\'re syncing your store data. Your first briefing arrives within 24 hours.',
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ] else ...[
+                Text('Connection failed', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: MorganSpace.sm),
+                Text(_errorMessage ?? shopifyOAuthErrorMessages['server_error']!, style: theme.textTheme.bodyLarge),
+              ],
+              const Spacer(),
+              if (_step == _OnboardingStep.welcome)
+                MorganPrimaryButton(label: 'Connect Shopify', onPressed: _connectShopify)
+              else if (_step == _OnboardingStep.connected)
+                MorganPrimaryButton(label: 'Continue', onPressed: _continueToHome)
+              else if (_step == _OnboardingStep.error)
+                MorganPrimaryButton(label: 'Try again', onPressed: () => setState(() => _step = _OnboardingStep.welcome)),
+              const SizedBox(height: MorganSpace.xl),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

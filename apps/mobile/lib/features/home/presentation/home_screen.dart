@@ -1,94 +1,113 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/morgan_colors.dart';
-import '../../../shared/widgets/kpi_tile.dart';
+import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_action_card.dart';
+import '../../../shared/widgets/morgan_fade_in.dart';
+import '../../../shared/widgets/morgan_logo.dart';
+import '../../../shared/widgets/morgan_metric_card.dart';
+import '../../../shared/widgets/morgan_section_header.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.morgan;
+    final today = DateFormat('EEEE, MMM d').format(DateTime.now());
 
     return Scaffold(
-      appBar: AppBar(
-        title: ShaderMask(
-          shaderCallback: (bounds) => MorganColors.brandGradient.createShader(bounds),
-          child: const Text(
-            'Morgan',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Today\'s brief', style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Profit rose 12% yesterday on lower discounting and improved Meta POAS.',
-            style: theme.textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 20),
-          const Row(
-            children: [
-              Expanded(child: KpiTile(label: 'Profit', value: '\$4,280', delta: '+12%', accent: KpiAccent.secondary)),
-              SizedBox(width: 12),
-              Expanded(child: KpiTile(label: 'MER', value: '3.2', delta: '+0.3', accent: KpiAccent.primary)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const KpiTile(
-            label: 'Cash runway',
-            value: 'Connect bank',
-            delta: null,
-            fullWidth: true,
-            accent: KpiAccent.tertiary,
-          ),
-          const SizedBox(height: 20),
-          Card(
-            color: MorganColors.tertiaryContainer,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFFFDE68A)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: MorganColors.tertiary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.bolt, color: MorganColors.tertiary, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Top action', style: theme.textTheme.titleMedium?.copyWith(color: MorganColors.onTertiaryContainer)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Reorder Blue Tee (M) to avoid an \$800 stockout risk.',
-                    style: TextStyle(color: MorganColors.onTertiaryContainer, height: 1.4),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {},
-                      child: const Text('Review'),
-                    ),
-                  ),
-                ],
+      backgroundColor: p.background,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  MorganSpace.screenH,
+                  MorganSpace.md,
+                  MorganSpace.screenH,
+                  MorganSpace.xs,
+                ),
+                child: Row(
+                  children: [
+                    const MorganLogo(size: 36),
+                    const Spacer(),
+                    Text(today, style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  MorganFadeIn(
+                    child: MorganBriefCard(
+                      dateLabel: 'Today',
+                      headline: 'Profit rose 12% on stronger margins',
+                      narrative:
+                          'Lower discounting and improved Meta POAS drove yesterday\'s gain. Cash runway unchanged until bank is connected.',
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  MorganFadeIn(
+                    delay: const Duration(milliseconds: 60),
+                    child: const MorganSectionHeader(title: 'Key metrics'),
+                  ),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganFadeIn(
+                    delay: const Duration(milliseconds: 100),
+                    child: const Row(
+                      children: [
+                        Expanded(
+                          child: MorganMetricCard(
+                            label: 'Profit',
+                            value: '\$4,280',
+                            delta: '+12%',
+                            trend: MetricTrend.up,
+                          ),
+                        ),
+                        SizedBox(width: MorganSpace.sm),
+                        Expanded(
+                          child: MorganMetricCard(
+                            label: 'MER',
+                            value: '3.2',
+                            delta: '+0.3',
+                            trend: MetricTrend.up,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganFadeIn(
+                    delay: const Duration(milliseconds: 140),
+                    child: MorganMetricCard(
+                      label: 'Cash runway',
+                      value: '—',
+                      subtitle: 'Connect bank to unlock runway forecast',
+                      onTap: () {},
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  MorganFadeIn(
+                    delay: const Duration(milliseconds: 180),
+                    child: MorganActionCard(
+                      title: 'Reorder inventory',
+                      body: 'Blue Tee (M) hits stockout risk in ~6 days.',
+                      impact: 'Protect ~\$800 revenue',
+                      onReview: () {},
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.huge),
+                ]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

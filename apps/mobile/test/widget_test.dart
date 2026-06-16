@@ -9,6 +9,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Morgan'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Connect Shopify'), findsOneWidget);
   });
 }
