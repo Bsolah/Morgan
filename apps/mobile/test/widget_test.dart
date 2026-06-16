@@ -9,6 +9,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Morgan'), findsOneWidget);
-    expect(find.text('Connect Shopify'), findsOneWidget);
+    expect(find.text('Get started'), findsOneWidget);
+    expect(find.text('Morgan — your AI CFO, not a dashboard'), findsOneWidget);
   });
 }

@@ -80,6 +80,15 @@ describe("Morgan API", () => {
     expect(res.headers.location).toContain("demo.myshopify.com/admin/oauth/authorize");
   });
 
+  it("GET /api/v1/stores/:storeId/sync/status requires auth", async () => {
+    const storeId = "00000000-0000-4000-8000-000000000012";
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${storeId}/sync/status`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("GET /api/v1/auth/me requires bearer token", async () => {
     const unauth = await app.inject({ method: "GET", url: "/api/v1/auth/me" });
     expect(unauth.statusCode).toBe(401);

@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { env } from "./config.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
+import { storeRoutes } from "./routes/stores.js";
 import { shopifyWebhookRoutes } from "./routes/webhooks/shopify.js";
 
 export async function buildApp() {
@@ -29,6 +30,7 @@ export async function buildApp() {
 
   await app.register(healthRoutes);
   await app.register(authRoutes);
+  await app.register(storeRoutes);
   await app.register(shopifyWebhookRoutes);
 
   return app;

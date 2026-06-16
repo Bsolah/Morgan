@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_providers.dart';
+import '../core/onboarding/onboarding_repository.dart';
 import '../features/alerts/presentation/alerts_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -17,11 +18,13 @@ final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier(0);
   ref.onDispose(notifier.dispose);
   ref.listen(authSessionProvider, (previous, next) => notifier.value++);
+  ref.listen(onboardingCompletedProvider, (previous, next) => notifier.value++);
   return notifier;
 });
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authSessionProvider);
+  final onboardingState = ref.watch(onboardingCompletedProvider);
   final refresh = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
@@ -34,9 +37,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         data: (session) => session?.isConnected ?? false,
         orElse: () => false,
       );
+      final onboardingComplete = onboardingState.maybeWhen(
+        data: (value) => value,
+        orElse: () => false,
+      );
 
       if (!connected && !isOnboarding) return '/onboarding';
-      if (connected && isOnboarding) return '/home';
+      if (connected && onboardingComplete && isOnboarding) return '/home';
       return null;
     },
     routes: [
