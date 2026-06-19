@@ -1,0 +1,66 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw facts written by Morgan ingest workers and sync services.
+    schema: morgan
+    tables:
+      - name: shopify_order_events
+        description: Shopify order webhook and backfill events.
+        columns:
+          - name: event_id
+            tests: [not_null, unique]
+          - name: store_id
+            tests: [not_null]
+          - name: occurred_at
+            tests: [not_null]
+
+      - name: dim_products
+        description: Shopify product catalog dimension.
+        columns:
+          - name: store_id
+            tests: [not_null]
+          - name: variant_id
+            tests: [not_null]
+
+      - name: fact_order_lines
+        description: Exploded Shopify order line items.
+        columns:
+          - name: store_id
+            tests: [not_null]
+          - name: order_id
+            tests: [not_null]
+          - name: line_id
+            tests: [not_null]
+
+      - name: meta_insights_daily
+        description: Meta campaign/adset/ad daily insights mirrored from Postgres.
+        columns:
+          - name: store_id
+            tests: [not_null]
+          - name: performance_date
+            tests: [not_null]
+
+      - name: google_ads_shopping_performance_daily
+        description: Google Ads shopping product daily performance.
+        columns:
+          - name: store_id
+            tests: [not_null]
+          - name: performance_date
+            tests: [not_null]
+
+      - name: profit_leaks
+        description: Active profit leak detections mirrored from Postgres.
+        columns:
+          - name: store_id
+            tests: [not_null]
+          - name: dedupe_key
+            tests: [not_null]
+
+      - name: recommendations
+        description: Ranked recommendation candidates mirrored from Postgres.
+        columns:
+          - name: recommendation_id
+            tests: [not_null, unique]
+          - name: store_id
+            tests: [not_null]

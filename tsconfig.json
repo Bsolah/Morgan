@@ -5,6 +5,8 @@
     { "path": "./packages/db" },
     { "path": "./packages/events" },
     { "path": "./packages/integrations" },
-    { "path": "./apps/api_server" }
+    { "path": "./packages/warehouse" },
+    { "path": "./apps/api_server" },
+    { "path": "./apps/worker" }
   ]
 }

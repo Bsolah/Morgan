@@ -1,0 +1,23 @@
+{
+  "name": "@morgan/warehouse",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@morgan/shared": "workspace:*"
+  },
+  "optionalDependencies": {
+    "@clickhouse/client": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

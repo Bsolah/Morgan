@@ -76,22 +76,48 @@ class MorganActionCard extends StatelessWidget {
   }
 }
 
-class MorganBriefCard extends StatelessWidget {
+class MorganBriefCard extends StatefulWidget {
   const MorganBriefCard({
     super.key,
     required this.headline,
     required this.narrative,
     this.dateLabel,
+    this.isEmpty = false,
+    this.emptyMessage,
+    this.expandAll = false,
   });
 
   final String headline;
   final String narrative;
   final String? dateLabel;
+  final bool isEmpty;
+  final String? emptyMessage;
+  final bool expandAll;
+
+  @override
+  State<MorganBriefCard> createState() => _MorganBriefCardState();
+}
+
+class _MorganBriefCardState extends State<MorganBriefCard> {
+  bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.expandAll;
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final showReadMore = !widget.isEmpty &&
+        !widget.expandAll &&
+        !_expanded &&
+        _isTruncated(widget.narrative);
+    final visibleNarrative = widget.isEmpty
+        ? (widget.emptyMessage ?? widget.narrative)
+        : (_expanded || !showReadMore ? widget.narrative : _preview(widget.narrative));
 
     return MorganSurface(
       child: Column(
@@ -107,16 +133,60 @@ class MorganBriefCard extends StatelessWidget {
               const SizedBox(width: MorganSpace.xs),
               Text('DAILY BRIEF', style: theme.textTheme.labelMedium),
               const Spacer(),
-              if (dateLabel != null)
-                Text(dateLabel!, style: theme.textTheme.bodySmall),
+              if (widget.dateLabel != null)
+                Text(widget.dateLabel!, style: theme.textTheme.bodySmall),
             ],
           ),
           const SizedBox(height: MorganSpace.md),
-          Text(headline, style: theme.textTheme.titleLarge?.copyWith(height: 1.3)),
-          const SizedBox(height: MorganSpace.sm),
-          Text(narrative, style: theme.textTheme.bodyLarge),
+          Text(
+            widget.headline,
+            style: theme.textTheme.titleLarge?.copyWith(height: 1.3),
+          ),
+          if (visibleNarrative.isNotEmpty) ...[
+            const SizedBox(height: MorganSpace.sm),
+            Text(visibleNarrative, style: theme.textTheme.bodyLarge),
+          ],
+          if (showReadMore)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _expanded = true),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Read more'),
+              ),
+            ),
+          if (_expanded && _isTruncated(widget.narrative))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _expanded = false),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Show less'),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  bool _isTruncated(String narrative) {
+    return narrative.trim().length > 180;
+  }
+
+  String _preview(String narrative) {
+    const limit = 180;
+    final trimmed = narrative.trim();
+    if (trimmed.length <= limit) return trimmed;
+    final cutoff = trimmed.lastIndexOf(' ', limit);
+    final end = cutoff > 80 ? cutoff : limit;
+    return '${trimmed.substring(0, end).trim()}…';
   }
 }

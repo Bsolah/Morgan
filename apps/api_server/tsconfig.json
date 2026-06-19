@@ -13,6 +13,7 @@
     { "path": "../../packages/shared" },
     { "path": "../../packages/db" },
     { "path": "../../packages/events" },
-    { "path": "../../packages/integrations" }
+    { "path": "../../packages/integrations" },
+    { "path": "../../packages/warehouse" }
   ]
 }

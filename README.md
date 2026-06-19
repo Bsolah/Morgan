@@ -23,10 +23,10 @@ pnpm mobile:devices
 
 ```bash
 pnpm install
-docker compose up -d   # Postgres on :5433, Redis on :6380
+docker compose up -d   # Postgres on :5434, Redis on :6380
 cp .env.example .env
 
-export DATABASE_URL=postgresql://morgan:morgan@localhost:5433/morgan
+export DATABASE_URL=postgresql://morgan:morgan@localhost:5434/morgan
 pnpm db:push
 pnpm dev:api
 ```

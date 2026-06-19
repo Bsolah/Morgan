@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import {
   integrationCredentials,
   integrations,
+  merchantFinanceConfig,
   organizations,
   stores,
   syncRuns,
@@ -18,6 +19,7 @@ export type ProvisionResult = {
   storeId: string;
   shopDomain: string;
   isReconnect: boolean;
+  syncRunId: string;
 };
 
 export async function provisionShopifyConnection(
@@ -162,11 +164,19 @@ export async function provisionShopifyConnection(
     });
   }
 
-  await db.insert(syncRuns).values({
-    storeId,
-    status: "pending",
-    triggeredBy: isReconnect ? "oauth_reconnect" : "oauth_connect",
-  });
+  const [syncRun] = await db
+    .insert(syncRuns)
+    .values({
+      storeId,
+      status: "pending",
+      triggeredBy: isReconnect ? "oauth_reconnect" : "oauth_connect",
+    })
+    .returning({ id: syncRuns.id });
+
+  await db
+    .insert(merchantFinanceConfig)
+    .values({ storeId, cogsMethod: "shopify" })
+    .onConflictDoNothing();
 
   return {
     userId: user.id,
@@ -174,5 +184,6 @@ export async function provisionShopifyConnection(
     storeId,
     shopDomain: input.shopDomain,
     isReconnect,
+    syncRunId: syncRun.id,
   };
 }

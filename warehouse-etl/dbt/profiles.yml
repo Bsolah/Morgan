@@ -1,0 +1,14 @@
+# Copy to warehouse-etl/dbt/profiles.yml for local dbt runs.
+morgan:
+  target: dev
+  outputs:
+    dev:
+      type: clickhouse
+      schema: morgan
+      host: localhost
+      port: 8123
+      user: default
+      password: ""
+      secure: false
+      verify: false
+      threads: 4

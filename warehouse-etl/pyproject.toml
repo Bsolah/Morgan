@@ -1,0 +1,28 @@
+[project]
+name = "morgan-etl"
+version = "0.1.0"
+description = "Dagster orchestration for Morgan dbt gold marts"
+requires-python = ">=3.11"
+dependencies = [
+  "dagster==1.9.10",
+  "dagster-webserver==1.9.10",
+  "dagster-dbt==0.25.10",
+  "dbt-clickhouse==1.8.9",
+  "redis>=5.0.0",
+  "httpx>=0.28.0",
+]
+
+[project.scripts]
+morgan-dagster = "morgan_etl.definitions:main"
+
+[tool.dagster]
+module_name = "morgan_etl.definitions"
+code_location_name = "morgan_etl"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["morgan_etl*"]

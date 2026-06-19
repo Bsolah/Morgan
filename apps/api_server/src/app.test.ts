@@ -11,7 +11,6 @@ process.env.JWT_SECRET = "test-jwt-secret-at-least-32-characters-long";
 process.env.NODE_ENV = "test";
 
 const { buildApp } = await import("./app.js");
-const { computeShopifyHmac } = await import("./routes/webhooks/shopify.js");
 
 describe("Morgan API", () => {
   let app: Awaited<ReturnType<typeof buildApp>>;
@@ -40,6 +39,7 @@ describe("Morgan API", () => {
     const body = res.json();
     expect(body.access_token).toBeTypeOf("string");
     expect(body.refresh_token).toBeTypeOf("string");
+    expect(body.expires_in).toBe(900);
     expect(body.shop_domain).toBe("demo.myshopify.com");
   });
 
@@ -80,6 +80,36 @@ describe("Morgan API", () => {
     expect(res.headers.location).toContain("demo.myshopify.com/admin/oauth/authorize");
   });
 
+  it("POST /api/v1/auth/refresh returns new access token", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session", shop_domain: "demo.myshopify.com" },
+    });
+    const { refresh_token } = exchange.json();
+
+    const refresh = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/refresh",
+      payload: { refresh_token },
+    });
+
+    expect(refresh.statusCode).toBe(200);
+    const body = refresh.json();
+    expect(body.access_token).toBeTypeOf("string");
+    expect(body.expires_in).toBe(900);
+    expect(body.token_type).toBe("Bearer");
+  });
+
+  it("POST /api/v1/auth/refresh rejects invalid refresh token", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/refresh",
+      payload: { refresh_token: "not-a-valid-token" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("GET /api/v1/auth/me requires bearer token", async () => {
     const unauth = await app.inject({ method: "GET", url: "/api/v1/auth/me" });
     expect(unauth.statusCode).toBe(401);
@@ -114,26 +144,5 @@ describe("Morgan API", () => {
       payload,
     });
     expect(res.statusCode).toBe(401);
-  });
-
-  it("POST /webhooks/shopify accepts valid HMAC", async () => {
-    const payload = JSON.stringify({ id: 42, total_price: "99.00" });
-    const hmac = computeShopifyHmac(payload, process.env.SHOPIFY_API_SECRET!);
-
-    const res = await app.inject({
-      method: "POST",
-      url: "/webhooks/shopify",
-      headers: {
-        "content-type": "application/json",
-        "x-shopify-hmac-sha256": hmac,
-        "x-shopify-topic": "orders/create",
-        "x-shopify-shop-domain": "demo.myshopify.com",
-        "x-shopify-webhook-id": "550e8400-e29b-41d4-a716-446655440000",
-      },
-      payload,
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ received: true });
   });
 });

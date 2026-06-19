@@ -150,7 +150,15 @@ Shopify Admin API webhook receiver.
 | `400` | Invalid JSON or missing raw body |
 | `500` | `SHOPIFY_API_SECRET` not configured |
 
-Events are written to bronze storage and published to in-memory topics (`shopify.orders` or `shopify.events`).
+Events are written to bronze storage (`BRONZE_STORAGE_PATH`) and published to Kafka topic `shopify.orders` when `KAFKA_ENABLED=true`, with an in-process worker for local dev.
+
+**Order topics** (`shopify.orders`): `orders/create`, `orders/updated`, `orders/cancelled`, `refunds/create`
+
+**Envelope fields:** `event_id`, `store_id`, `occurred_at`, `payload`
+
+**Idempotency:** `X-Shopify-Webhook-Id` is deduplicated for 24h via Redis (`REDIS_URL`). Duplicates return `200` with `{ duplicate: true }`.
+
+**Processing:** Handler returns `200` immediately; bronze + Kafka ingest runs async. A worker upserts to ClickHouse (`CLICKHOUSE_URL`) with 3 retries and dead-letter to `DEAD_LETTER_STORAGE_PATH` on failure.
 
 ### `POST /webhooks/shopify/compliance`
 

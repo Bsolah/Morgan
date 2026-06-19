@@ -1,0 +1,27 @@
+{
+  "Rules": [
+    {
+      "ID": "bronze-expire-after-24-months",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "Expiration": {
+        "Days": 730
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 730
+      }
+    },
+    {
+      "ID": "quarantine-expire-after-24-months",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "quarantine/"
+      },
+      "Expiration": {
+        "Days": 730
+      }
+    }
+  ]
+}

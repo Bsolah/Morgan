@@ -26,6 +26,11 @@ import {
   issueConnectToken,
 } from "../lib/shopify-oauth-state.js";
 import { provisionShopifyConnection } from "../lib/shopify-connect-service.js";
+import { enqueueOrderBackfill } from "../lib/order-backfill-service.js";
+import { enqueueProductCatalogSync } from "../lib/product-catalog-service.js";
+import { runOrderBackfillNow } from "../lib/order-backfill-runner.js";
+import { runProductCatalogNow } from "../lib/product-catalog-runner.js";
+import { runPayoutSyncNow } from "../lib/payout-sync-runner.js";
 
 const tokenExchangeSchema = z.object({
   connect_token: z.string().min(1).optional(),
@@ -146,6 +151,12 @@ export async function authRoutes(app: FastifyInstance) {
         encryptionKey: env.ENCRYPTION_KEY,
         scopes: env.SHOPIFY_APP_SCOPES,
       });
+
+      await enqueueOrderBackfill(db, provisioned.storeId, provisioned.syncRunId);
+      await enqueueProductCatalogSync(db, provisioned.storeId, provisioned.syncRunId);
+      void runOrderBackfillNow(db);
+      void runProductCatalogNow(db);
+      void runPayoutSyncNow(db, provisioned.storeId);
 
       const connectToken = issueConnectToken({
         userId: provisioned.userId,

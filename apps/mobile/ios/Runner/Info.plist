@@ -45,6 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Morgan uses Face ID to unlock your financial briefings.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

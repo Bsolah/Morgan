@@ -1,0 +1,26 @@
+{
+  "name": "@morgan/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development tsx watch ./src/index.ts",
+    "start": "cross-env NODE_ENV=production tsx ./src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@morgan/events": "workspace:*",
+    "@morgan/shared": "workspace:*",
+    "@morgan/warehouse": "workspace:*",
+    "dotenv": "^16.6.1"
+  },
+  "optionalDependencies": {
+    "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "cross-env": "^7.0.3",
+    "tsx": "catalog:",
+    "typescript": "~5.9.2"
+  }
+}

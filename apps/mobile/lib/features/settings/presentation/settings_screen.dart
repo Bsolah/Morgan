@@ -1,21 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_controller.dart';
+import '../../../core/auth/auth_repository.dart';
+import '../../../core/auth/biometric_service.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/inventory/inventory_config_repository.dart';
+import '../../../core/finance/finance_repository.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool? _biometricEnabled;
+  bool _biometricAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBiometricState());
+  }
+
+  Future<void> _loadBiometricState() async {
+    final biometric = ref.read(biometricServiceProvider);
+    final repo = ref.read(authRepositoryProvider);
+    final supported = await biometric.isDeviceSupported();
+    final canCheck = await biometric.canCheckBiometrics();
+    final enabled = await repo.isBiometricEnabled();
+
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = supported && canCheck;
+      _biometricEnabled = enabled;
+    });
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    if (value) {
+      final biometric = ref.read(biometricServiceProvider);
+      final ok = await biometric.authenticate(
+        reason: 'Confirm your identity to enable biometric unlock',
+      );
+      if (!ok) return;
+      await ref.read(authControllerProvider.notifier).enableBiometric();
+    } else {
+      await ref.read(authControllerProvider.notifier).disableBiometric();
+    }
+
+    setState(() => _biometricEnabled = value);
+  }
+
+  Future<void> _logout() async {
+    await ref.read(authControllerProvider.notifier).logout();
+    if (mounted) context.go('/onboarding');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
     final themeMode = ref.watch(themeModeProvider);
+    final shopDomain = ref.watch(authControllerProvider).session?.shopDomain;
+
+    // Ensure API client is initialized for authenticated requests site-wide.
+    ref.watch(apiClientProvider);
 
     return Scaffold(
       backgroundColor: p.background,
@@ -32,6 +91,40 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('ACCOUNT', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: Text('Connected store', style: theme.textTheme.titleSmall),
+                          subtitle: Text(
+                            shopDomain ?? 'Not connected',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                        if (_biometricAvailable) ...[
+                          Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                          SwitchListTile(
+                            title: Text('Biometric unlock', style: theme.textTheme.titleSmall),
+                            subtitle: Text(
+                              'Face ID or fingerprint to open Morgan',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            value: _biometricEnabled ?? false,
+                            onChanged: _biometricEnabled == null ? null : _toggleBiometric,
+                          ),
+                        ],
+                        Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                        ListTile(
+                          title: Text('Sign out', style: theme.textTheme.titleSmall?.copyWith(color: p.loss)),
+                          onTap: _logout,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
                   Text('APPEARANCE', style: theme.textTheme.labelMedium),
                   const SizedBox(height: MorganSpace.sm),
                   MorganSurface(
@@ -53,6 +146,31 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: MorganSpace.xl),
+                  Text('INTEGRATIONS', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: _SettingsTile(
+                      title: 'Integrations Hub',
+                      subtitle: 'Meta Ads, Shopify, and more',
+                      onTap: () => context.push('/settings/integrations'),
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  Text('INVENTORY', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: _SettingsTile(
+                      title: 'Lead times',
+                      subtitle: ref.watch(inventoryConfigProvider).maybeWhen(
+                            data: (config) => config.subtitle,
+                            orElse: () => '14-day default',
+                          ),
+                      onTap: () => context.push('/settings/inventory'),
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
                   Text('FINANCE', style: theme.textTheme.labelMedium),
                   const SizedBox(height: MorganSpace.sm),
                   MorganSurface(
@@ -61,8 +179,11 @@ class SettingsScreen extends ConsumerWidget {
                       children: [
                         _SettingsTile(
                           title: 'COGS method',
-                          subtitle: 'Shopify unit cost',
-                          onTap: () {},
+                          subtitle: ref.watch(financeConfigProvider).maybeWhen(
+                                data: (config) => config.subtitle,
+                                orElse: () => 'Shopify unit cost',
+                              ),
+                          onTap: () => context.push('/settings/cogs'),
                         ),
                         Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
                         _SettingsTile(

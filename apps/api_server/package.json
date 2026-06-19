@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch ./src/index.ts",
-    "start": "NODE_ENV=production tsx ./src/index.ts",
+    "dev": "cross-env NODE_ENV=development tsx watch ./src/index.ts",
+    "start": "cross-env NODE_ENV=production tsx ./src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -15,6 +15,7 @@
     "@morgan/events": "workspace:*",
     "@morgan/integrations": "workspace:*",
     "@morgan/shared": "workspace:*",
+    "@morgan/warehouse": "workspace:*",
     "dotenv": "^16.6.1",
     "drizzle-orm": "catalog:",
     "fastify": "^5.3.3",
@@ -22,9 +23,13 @@
     "pg": "^8.20.0",
     "zod": "catalog:"
   },
+  "optionalDependencies": {
+    "redis": "^5.8.2"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.18.0",
+    "cross-env": "^7.0.3",
     "tsx": "catalog:",
     "typescript": "~5.9.2",
     "vitest": "^3.2.4"

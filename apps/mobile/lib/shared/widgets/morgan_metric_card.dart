@@ -15,6 +15,7 @@ class MorganMetricCard extends StatelessWidget {
     this.delta,
     this.trend,
     this.subtitle,
+    this.infoTooltip,
     this.onTap,
   });
 
@@ -23,6 +24,7 @@ class MorganMetricCard extends StatelessWidget {
   final String? delta;
   final MetricTrend? trend;
   final String? subtitle;
+  final String? infoTooltip;
   final VoidCallback? onTap;
 
   @override
@@ -50,7 +52,17 @@ class MorganMetricCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: theme.textTheme.labelMedium),
+          Row(
+            children: [
+              Expanded(child: Text(label.toUpperCase(), style: theme.textTheme.labelMedium)),
+              if (infoTooltip != null)
+                Tooltip(
+                  message: infoTooltip!,
+                  triggerMode: TooltipTriggerMode.tap,
+                  child: Icon(Icons.info_outline, size: 16, color: p.textMuted),
+                ),
+            ],
+          ),
           const SizedBox(height: MorganSpace.sm),
           Text(value, style: MorganTypography.metricValue(p)),
           if (delta != null && deltaColor != null) ...[

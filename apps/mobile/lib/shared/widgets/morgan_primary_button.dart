@@ -12,7 +12,7 @@ class MorganPrimaryButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool expanded;
 
   @override

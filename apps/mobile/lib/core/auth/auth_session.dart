@@ -11,5 +11,5 @@ class AuthSession {
   final String storeId;
   final String shopDomain;
 
-  bool get isConnected => shopDomain.isNotEmpty;
+  bool get isConnected => shopDomain.isNotEmpty && accessToken.isNotEmpty;
 }

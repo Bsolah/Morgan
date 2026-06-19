@@ -10,16 +10,22 @@
     "typecheck": "tsc --build",
     "dev:api": "pnpm --filter @morgan/api_server run dev",
     "db:push": "pnpm --filter @morgan/db run push",
-    "mobile:devices": "bash scripts/list-mobile-devices.sh",
-    "mobile:ios": "bash scripts/run-mobile-ios.sh",
-    "mobile:android": "bash scripts/run-mobile-android.sh",
+    "mobile:devices": "node scripts/run-mobile.mjs devices",
+    "mobile:ios": "node scripts/run-mobile.mjs ios",
+    "mobile:android": "node scripts/run-mobile.mjs android",
     "test": "pnpm -r --if-present run test",
-    "test:api": "pnpm --filter @morgan/integrations run test && pnpm --filter @morgan/api_server run test",
+    "test:api": "pnpm --filter @morgan/integrations run test && pnpm --filter @morgan/events run test && pnpm --filter @morgan/warehouse run test && pnpm --filter @morgan/api_server run test",
+    "bronze:replay": "tsx scripts/bronze-replay.ts",
+    "dbt:parse": "python scripts/dbt-parse.py",
+    "dev:worker": "pnpm --filter @morgan/worker run dev",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "issues:sprint-1": "bash scripts/create-sprint-1-issues.sh"
   },
   "devDependencies": {
+    "dotenv": "^16.6.1",
+    "tsx": "catalog:",
+    "@morgan/events": "workspace:*",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   }

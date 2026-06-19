@@ -14,4 +14,6 @@ class AppConfig {
 
     return 'http://localhost:8080';
   }
+
+  static const deepLinkScheme = 'morgan';
 }

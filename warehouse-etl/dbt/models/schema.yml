@@ -1,0 +1,130 @@
+version: 2
+
+models:
+  - name: stg_shopify_orders
+    description: Deduplicated Shopify order events with parsed totals.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: order_id
+        tests: [not_null]
+      - name: order_day
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, order_id]
+
+  - name: stg_shopify_products
+    description: Latest Shopify product variant catalog rows.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: variant_id
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, variant_id]
+
+  - name: stg_shopify_order_lines
+    description: Normalized Shopify order line facts.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: order_id
+        tests: [not_null]
+      - name: line_id
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, order_id, line_id]
+
+  - name: stg_meta_ads
+    description: Campaign-level Meta ads daily performance.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: day
+        tests: [not_null]
+      - name: campaign_id
+        tests: [not_null]
+
+  - name: stg_google_ads
+    description: Google Ads shopping performance by campaign and product.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: day
+        tests: [not_null]
+      - name: campaign_id
+        tests: [not_null]
+
+  - name: mart_orders_daily
+    description: Store-day order economics for engine consumption.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: day
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, day]
+
+  - name: stg_shopify_refund_lines
+    description: Refund line items extracted from Shopify order payloads.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: sku_key
+        tests: [not_null]
+      - name: week_start
+        tests: [not_null]
+
+  - name: mart_sku_economics
+    description: Store-SKU-week unit economics and velocity.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: sku
+        tests: [not_null]
+      - name: week_start
+        tests: [not_null]
+      - name: orders_count
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, sku, week_start]
+
+  - name: mart_ad_performance
+    description: Cross-channel campaign performance mart.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: channel
+        tests: [not_null]
+      - name: campaign_id
+        tests: [not_null]
+      - name: day
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [store_id, channel, campaign_id, day]
+
+  - name: mart_profit_leaks
+    description: Daily profit leak aggregates for dashboard and chat.
+    columns:
+      - name: store_id
+        tests: [not_null]
+      - name: day
+        tests: [not_null]
+      - name: leak_type
+        tests: [not_null]
+
+  - name: mart_recommendations
+    description: Recommendation serving mart for chat and mobile feed.
+    columns:
+      - name: recommendation_id
+        tests: [not_null, unique]
+      - name: store_id
+        tests: [not_null]
+      - name: status
+        tests: [not_null]
