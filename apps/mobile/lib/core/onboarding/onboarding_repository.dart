@@ -1,6 +1,8 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/app_config.dart';
+
 const _onboardingCompletedKey = 'morgan_onboarding_completed';
 
 class OnboardingRepository {
@@ -10,6 +12,7 @@ class OnboardingRepository {
   final FlutterSecureStorage _storage;
 
   Future<bool> isCompleted() async {
+    if (AppConfig.canSkipSetup) return true;
     return (await _storage.read(key: _onboardingCompletedKey)) == 'true';
   }
 

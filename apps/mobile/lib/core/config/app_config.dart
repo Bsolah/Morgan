@@ -14,4 +14,13 @@ class AppConfig {
 
     return 'http://localhost:8080';
   }
+
+  /// Skip Shopify connect + onboarding for local UI development.
+  /// Enabled via `--dart-define=SKIP_SETUP=true` (default in `pnpm mobile:ios`).
+  static bool get canSkipSetup {
+    return const String.fromEnvironment('SKIP_SETUP') == 'true';
+  }
+
+  static const devSessionStoreId = 'dev-local-store';
+  static const devSessionShopDomain = 'dev-store.myshopify.com';
 }

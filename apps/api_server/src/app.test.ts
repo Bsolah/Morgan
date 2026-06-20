@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  resetOutcomeTrackingJobs,
+} from "./lib/recommendation-outcome-jobs.js";
+import {
+  resetRankingFeedbackEvents,
+} from "./lib/recommendation-ranking-feedback.js";
+import { resetRecommendationState } from "./lib/recommendation-state.js";
+import { resetDismissalSuppressions } from "./lib/recommendation-suppression.js";
 import {
   consumeConnectToken,
   issueConnectToken,
@@ -18,6 +26,13 @@ describe("Morgan API", () => {
 
   beforeAll(async () => {
     app = await buildApp();
+  });
+
+  beforeEach(() => {
+    resetRecommendationState();
+    resetOutcomeTrackingJobs();
+    resetDismissalSuppressions();
+    resetRankingFeedbackEvents();
   });
 
   afterAll(async () => {
@@ -87,6 +102,134 @@ describe("Morgan API", () => {
       url: `/api/v1/stores/${storeId}/sync/status`,
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/v1/stores/:storeId/recommendations returns ranked open items", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/recommendations`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.open.length).toBeLessThanOrEqual(5);
+    expect(body.open[0]).toMatchObject({
+      rank: 1,
+      title: expect.any(String),
+      impact_low_usd: expect.any(Number),
+      effort: expect.stringMatching(/^(low|medium|high)$/),
+      confidence: expect.stringMatching(/^(low|medium|high)$/),
+      category: expect.any(String),
+      expires_at: expect.any(String),
+    });
+    expect(body.archived_count).toBeGreaterThan(0);
+  });
+
+  it("POST accept sets accepted_at and moves item to in_progress", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const accept = await app.inject({
+      method: "POST",
+      url: `/api/v1/stores/${store_id}/recommendations/rec-001/accept`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(accept.statusCode).toBe(200);
+    expect(accept.json()).toMatchObject({
+      id: "rec-001",
+      status: "accepted",
+      accepted_at: expect.any(String),
+      outcome_job_id: expect.any(String),
+    });
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/recommendations`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const body = list.json();
+    expect(body.open.some((item: { id: string }) => item.id === "rec-001")).toBe(false);
+    expect(body.in_progress.some((item: { id: string }) => item.id === "rec-001")).toBe(true);
+  });
+
+  it("POST dismiss records reason and suppresses similar recommendations", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const dismiss = await app.inject({
+      method: "POST",
+      url: `/api/v1/stores/${store_id}/recommendations/rec-001/dismiss`,
+      headers: { authorization: `Bearer ${access_token}` },
+      payload: { reason: "not_relevant", comment: "We paused this campaign already" },
+    });
+
+    expect(dismiss.statusCode).toBe(200);
+    expect(dismiss.json()).toMatchObject({
+      id: "rec-001",
+      status: "dismissed",
+      reason: "not_relevant",
+      feedback_event_id: expect.any(String),
+    });
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/recommendations`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    const body = list.json();
+    expect(body.open.some((item: { id: string }) => item.id === "rec-001")).toBe(false);
+    expect(body.open.some((item: { id: string }) => item.id === "rec-006")).toBe(false);
+  });
+
+  it("GET /api/v1/stores/:storeId/recommendations/:id returns detail", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/recommendations/rec-001`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      id: "rec-001",
+      description: expect.any(String),
+      evidence: expect.any(Array),
+      suggested_deadline: expect.any(String),
+      calculation: {
+        summary: expect.any(String),
+        citations: expect.any(Array),
+      },
+      related: {
+        type: expect.stringMatching(/^(leak|metric)$/),
+        label: expect.any(String),
+        headline: expect.any(String),
+      },
+    });
   });
 
   it("GET /api/v1/auth/me requires bearer token", async () => {

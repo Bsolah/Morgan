@@ -4,6 +4,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/onboarding/onboarding_repository.dart';
 import '../../../core/shopify/shopify_oauth.dart';
 import '../../../core/sync/sync_status.dart';
@@ -136,6 +137,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _connectedShop = session.shopDomain;
       _phase = OnboardingPhase.connectConfirmed;
     });
+  }
+
+  Future<void> _skipLocalDevSetup() async {
+    await ref.read(authRepositoryProvider).seedDevSession();
+    await ref.read(onboardingRepositoryProvider).markCompleted();
+    ref.invalidate(authSessionProvider);
+    ref.invalidate(onboardingCompletedProvider);
+    if (mounted) context.go('/home');
   }
 
   Future<void> _finishOnboarding() async {
@@ -335,9 +344,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _buildPrimaryAction(BuildContext context) {
     return switch (_phase) {
-      OnboardingPhase.welcome => MorganPrimaryButton(
-          label: 'Get started',
-          onPressed: () => _goToPhase(OnboardingPhase.connectShopify),
+      OnboardingPhase.welcome => Column(
+          children: [
+            MorganPrimaryButton(
+              label: 'Get started',
+              onPressed: () => _goToPhase(OnboardingPhase.connectShopify),
+            ),
+            if (AppConfig.canSkipSetup) ...[
+              const SizedBox(height: MorganSpace.sm),
+              Align(
+                alignment: Alignment.center,
+                child: TextButton(
+                  onPressed: _skipLocalDevSetup,
+                  child: const Text('Skip setup (local dev)'),
+                ),
+              ),
+            ],
+          ],
         ),
       OnboardingPhase.connectShopify => Column(
           children: [

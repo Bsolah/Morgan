@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_providers.dart';
+import '../core/config/app_config.dart';
 import '../core/onboarding/onboarding_repository.dart';
 import '../features/alerts/presentation/alerts_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
+import '../features/recommendations/presentation/recommendation_detail_screen.dart';
 import '../features/recommendations/presentation/recommendations_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../shared/widgets/morgan_shell.dart';
@@ -29,7 +31,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/onboarding',
+    initialLocation: AppConfig.canSkipSetup ? '/home' : '/onboarding',
     refreshListenable: refresh,
     redirect: (context, state) {
       final isOnboarding = state.matchedLocation == '/onboarding';
@@ -50,6 +52,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/recommendations/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => RecommendationDetailScreen(
+          recommendationId: state.pathParameters['id']!,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
