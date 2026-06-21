@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/auth/auth_providers.dart';
 import '../core/config/app_config.dart';
 import '../core/onboarding/onboarding_repository.dart';
+import '../features/alerts/presentation/alert_detail_screen.dart';
 import '../features/alerts/presentation/alerts_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -58,6 +59,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => RecommendationDetailScreen(
           recommendationId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/alerts/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => AlertDetailScreen(
+          alertId: state.pathParameters['id']!,
         ),
       ),
       StatefulShellRoute.indexedStack(

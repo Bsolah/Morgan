@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { resetAlertsStore } from "./lib/alerts-store.js";
 import {
   resetOutcomeTrackingJobs,
 } from "./lib/recommendation-outcome-jobs.js";
@@ -29,6 +30,7 @@ describe("Morgan API", () => {
   });
 
   beforeEach(() => {
+    resetAlertsStore();
     resetRecommendationState();
     resetOutcomeTrackingJobs();
     resetDismissalSuppressions();
@@ -230,6 +232,180 @@ describe("Morgan API", () => {
         headline: expect.any(String),
       },
     });
+  });
+
+  it("GET /api/v1/stores/:storeId/alerts fires margin drop alert for stub store", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.unread_count).toBeGreaterThanOrEqual(4);
+
+    const marginAlert = body.alerts.find((alert: { type: string }) => alert.type === "margin_drop");
+    expect(marginAlert).toMatchObject({
+      severity: "warning",
+      type: "margin_drop",
+      magnitude: expect.stringContaining("below 7-day average"),
+      top_driver: expect.stringContaining("Refunds"),
+      read_at: null,
+      links: {
+        brief: "/home",
+        chat: expect.stringContaining("/chat"),
+      },
+    });
+  });
+
+  it("GET /api/v1/stores/:storeId/alerts fires ad waste alert for stub store", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const adWasteAlert = res.json().alerts.find(
+      (alert: { type: string }) => alert.type === "ad_waste",
+    );
+    expect(adWasteAlert).toMatchObject({
+      severity: "warning",
+      type: "ad_waste",
+      title: expect.stringContaining("Retargeting BOF"),
+      magnitude: expect.stringContaining("POAS 0.72"),
+      top_driver: expect.stringContaining("Pause campaign"),
+      read_at: null,
+      links: {
+        marketing_overview: expect.stringContaining("/marketing"),
+        recommendation: "/recommendations/rec-001",
+      },
+      metric_snapshot: {
+        campaign_name: "Retargeting BOF",
+        poas_7d: 0.72,
+        spend_7d_usd: 1800,
+      },
+    });
+  });
+
+  it("GET /api/v1/stores/:storeId/alerts fires stockout risk alert for stub store", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const stockoutAlert = res.json().alerts.find(
+      (alert: { type: string }) => alert.type === "stockout_risk",
+    );
+    expect(stockoutAlert).toMatchObject({
+      severity: "warning",
+      type: "stockout_risk",
+      title: expect.stringContaining("Blue Tee (M)"),
+      magnitude: expect.stringContaining("6 days remaining"),
+      read_at: null,
+      links: {
+        recommendation: "/recommendations/rec-002",
+      },
+      metric_snapshot: {
+        sku_name: "Blue Tee (M)",
+        days_of_stock: 6,
+        lead_time_days: 10,
+        recommendation_id: "rec-002",
+      },
+    });
+  });
+
+  it("GET /api/v1/stores/:storeId/alerts fires cash crunch alert for stub store", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const cashAlert = res.json().alerts.find(
+      (alert: { type: string }) => alert.type === "cash_crunch",
+    );
+    expect(cashAlert).toMatchObject({
+      severity: "critical",
+      type: "cash_crunch",
+      magnitude: expect.stringContaining("5 days runway"),
+      top_driver: "Pause discretionary ad spend",
+      read_at: null,
+      links: {
+        brief: "/home",
+        chat: expect.stringContaining("/chat"),
+      },
+      metric_snapshot: {
+        cash_balance_usd: 4100,
+        daily_burn_usd: 820,
+        runway_days: 5,
+        suggested_actions: expect.arrayContaining(["Pause discretionary ad spend"]),
+      },
+    });
+  });
+
+  it("POST /api/v1/stores/:storeId/alerts/:alertId/read sets read_at", async () => {
+    const exchange = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/shopify/token-exchange",
+      payload: { session_token: "stub-session" },
+    });
+    const { access_token, store_id } = exchange.json();
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+    const alertId = list.json().alerts[0].id;
+
+    const read = await app.inject({
+      method: "POST",
+      url: `/api/v1/stores/${store_id}/alerts/${alertId}/read`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+
+    expect(read.statusCode).toBe(200);
+    expect(read.json().read_at).toEqual(expect.any(String));
+
+    const refreshed = await app.inject({
+      method: "GET",
+      url: `/api/v1/stores/${store_id}/alerts`,
+      headers: { authorization: `Bearer ${access_token}` },
+    });
+    expect(refreshed.json().unread_count).toBe(list.json().unread_count - 1);
   });
 
   it("GET /api/v1/auth/me requires bearer token", async () => {
