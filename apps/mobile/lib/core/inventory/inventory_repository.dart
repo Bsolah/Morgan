@@ -23,6 +23,10 @@ class InventorySkuHealth {
     this.reorderByDay,
     this.recommendationTitle,
     this.recommendationBody,
+    this.observedVelocityPerDay,
+    this.forecastedVelocityPerDay,
+    this.forecastModel,
+    this.forecastUnits30d,
   });
 
   final String sku;
@@ -42,6 +46,10 @@ class InventorySkuHealth {
   final String? reorderByDay;
   final String? recommendationTitle;
   final String? recommendationBody;
+  final double? observedVelocityPerDay;
+  final double? forecastedVelocityPerDay;
+  final String? forecastModel;
+  final double? forecastUnits30d;
 
   factory InventorySkuHealth.fromJson(Map<String, dynamic> json) {
     return InventorySkuHealth(
@@ -62,6 +70,10 @@ class InventorySkuHealth {
       reorderByDay: json['reorder_by_day'] as String?,
       recommendationTitle: json['recommendation_title'] as String?,
       recommendationBody: json['recommendation_body'] as String?,
+      observedVelocityPerDay: (json['observed_velocity_per_day'] as num?)?.toDouble(),
+      forecastedVelocityPerDay: (json['forecasted_velocity_per_day'] as num?)?.toDouble(),
+      forecastModel: json['forecast_model'] as String?,
+      forecastUnits30d: (json['forecast_units_30d'] as num?)?.toDouble(),
     );
   }
 }

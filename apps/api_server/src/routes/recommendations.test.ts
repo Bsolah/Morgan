@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { profitLeaks } from "@morgan/db";
 import { getDb } from "../lib/db.js";
+import { generateRecommendationCandidatesForStore } from "../lib/recommendation-candidate-service.js";
+import { rankAndPromoteRecommendationCandidates } from "../lib/recommendation-ranking-service.js";
 import { ensureStubStoreForTests, STUB_STORE_ID } from "../test/stub-store.js";
 
 process.env.SHOPIFY_API_SECRET = "test-shopify-secret-key-for-hmac";
@@ -46,6 +48,17 @@ async function seedActiveProfitLeak(db: NonNullable<ReturnType<typeof getDb>>): 
     });
 }
 
+async function seedAndPromoteRecommendations(db: NonNullable<ReturnType<typeof getDb>>): Promise<string | null> {
+  await seedActiveProfitLeak(db);
+  const referenceDay = new Date().toISOString().slice(0, 10);
+  await generateRecommendationCandidatesForStore(db, STUB_STORE_ID, referenceDay);
+  const result = await rankAndPromoteRecommendationCandidates(db, STUB_STORE_ID, referenceDay);
+  if (result.promoted_count === 0) {
+    return null;
+  }
+  return `rec-test-${referenceDay}-0`;
+}
+
 describe("recommendations routes", () => {
   let app: Awaited<ReturnType<typeof buildApp>>;
 
@@ -54,7 +67,7 @@ describe("recommendations routes", () => {
     const db = getDb();
     if (db) {
       await ensureStubStoreForTests(db);
-      await seedActiveProfitLeak(db);
+      await seedAndPromoteRecommendations(db);
     }
   });
 
@@ -104,13 +117,17 @@ describe("recommendations routes", () => {
   it("accepts a recommendation and returns confirmation copy", async () => {
     const token = await getAccessToken(app);
     const db = getDb();
+    let recommendationId = TEST_LEAK_ID;
     if (db) {
-      await seedActiveProfitLeak(db);
+      const promotedId = await seedAndPromoteRecommendations(db);
+      if (promotedId) {
+        recommendationId = promotedId;
+      }
     }
 
     const res = await app.inject({
       method: "POST",
-      url: `/api/v1/recommendations/${TEST_LEAK_ID}/accept`,
+      url: `/api/v1/recommendations/${recommendationId}/accept`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -127,13 +144,17 @@ describe("recommendations routes", () => {
   it("dismisses a recommendation and returns confirmation copy", async () => {
     const token = await getAccessToken(app);
     const db = getDb();
+    let recommendationId = TEST_LEAK_ID;
     if (db) {
-      await seedActiveProfitLeak(db);
+      const promotedId = await seedAndPromoteRecommendations(db);
+      if (promotedId) {
+        recommendationId = promotedId;
+      }
     }
 
     const res = await app.inject({
       method: "POST",
-      url: `/api/v1/recommendations/${TEST_LEAK_ID}/dismiss`,
+      url: `/api/v1/recommendations/${recommendationId}/dismiss`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -145,5 +166,48 @@ describe("recommendations routes", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().recommendation.status).toBe("dismissed");
     expect(res.json().confirmation_message).toContain("Dismissed");
+  });
+
+  it("GET /api/v1/recommendations/candidates returns pending candidates", async () => {
+    const token = await getAccessToken(app);
+    const db = getDb();
+    if (db) {
+      await seedActiveProfitLeak(db);
+      await generateRecommendationCandidatesForStore(db, STUB_STORE_ID);
+    }
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/recommendations/candidates",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      store_id: expect.any(String),
+      count: expect.any(Number),
+      candidates: expect.any(Array),
+    });
+
+    if (res.json().count > 0) {
+      expect(res.json().candidates[0]).toMatchObject({
+        engine: expect.stringMatching(/^(leak|inventory|marketing)$/),
+        category: expect.any(String),
+        title: expect.any(String),
+        body: expect.any(String),
+        impact_low: expect.any(Number),
+        impact_high: expect.any(Number),
+        confidence: expect.stringMatching(/^(high|medium|low)$/),
+        effort: expect.stringMatching(/^(low|medium|high)$/),
+        evidence: expect.any(Array),
+        expires_at: expect.any(String),
+        similarity_hash: expect.any(String),
+      });
+    }
   });
 });

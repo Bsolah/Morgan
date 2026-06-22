@@ -65,6 +65,42 @@ describe("profit routes", () => {
     });
   });
 
+  it("GET /api/v1/stores/:store_id/profit/forecast/revenue requires auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/stores/00000000-0000-4000-8000-000000000002/profit/forecast/revenue",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/v1/stores/:store_id/profit/forecast/revenue returns forecast payload", async () => {
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/stores/00000000-0000-4000-8000-000000000002/profit/forecast/revenue",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    if (res.statusCode === 403) {
+      expect(res.json().code).toBe("forbidden");
+      return;
+    }
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      store_id: expect.any(String),
+      status: expect.stringMatching(/^(ready|insufficient_data)$/),
+      horizon_days: expect.any(Number),
+      daily: expect.any(Array),
+      cumulative: expect.any(Array),
+    });
+  });
+
   it("GET /api/v1/stores/:store_id/profit/margin-drivers requires auth", async () => {
     const res = await app.inject({
       method: "GET",

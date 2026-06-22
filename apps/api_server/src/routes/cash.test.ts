@@ -141,4 +141,49 @@ describe("cash payout routes", () => {
       expect(body.flow_breakdown).toEqual([]);
     }
   });
+
+  it("GET /api/v1/cash/forecast/projection requires auth", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/v1/cash/forecast/projection" });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/v1/cash/forecast/projection returns projection or connect bank CTA", async () => {
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/cash/forecast/projection",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({
+      bank_connected: expect.any(Boolean),
+      available: expect.any(Boolean),
+      horizon_days: 60,
+      points: expect.any(Array),
+    });
+
+    if (body.bank_connected === false) {
+      expect(body).toMatchObject({
+        available: false,
+        cta: "Connect bank",
+        points: [],
+      });
+    }
+  });
+
+  it("PATCH /api/v1/cash/forecast/assumptions requires auth", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/cash/forecast/assumptions",
+      payload: { expected_daily_ad_spend_usd: 100 },
+    });
+    expect(res.statusCode).toBe(401);
+  });
 });

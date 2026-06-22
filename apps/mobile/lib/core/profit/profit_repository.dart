@@ -411,6 +411,72 @@ class ProfitSkuDetailResponse {
   }
 }
 
+class RevenueForecastBandPoint {
+  const RevenueForecastBandPoint({
+    required this.day,
+    required this.p10,
+    required this.p50,
+    required this.p90,
+  });
+
+  final String day;
+  final double? p10;
+  final double p50;
+  final double? p90;
+
+  factory RevenueForecastBandPoint.fromJson(Map<String, dynamic> json) {
+    return RevenueForecastBandPoint(
+      day: json['day'] as String? ?? '',
+      p10: (json['p10'] as num?)?.toDouble(),
+      p50: (json['p50'] as num?)?.toDouble() ?? 0,
+      p90: (json['p90'] as num?)?.toDouble(),
+    );
+  }
+}
+
+class RevenueForecastResponse {
+  const RevenueForecastResponse({
+    required this.storeId,
+    required this.status,
+    required this.message,
+    required this.asOfDay,
+    required this.horizonDays,
+    required this.mape,
+    required this.displayBands,
+    required this.daily,
+    required this.cumulative,
+  });
+
+  final String storeId;
+  final String status;
+  final String? message;
+  final String? asOfDay;
+  final int horizonDays;
+  final double? mape;
+  final bool displayBands;
+  final List<RevenueForecastBandPoint> daily;
+  final List<RevenueForecastBandPoint> cumulative;
+
+  bool get isReady => status == 'ready';
+  bool get isInsufficientData => status == 'insufficient_data';
+
+  factory RevenueForecastResponse.fromJson(Map<String, dynamic> json) {
+    final dailyJson = json['daily'] as List<dynamic>? ?? const [];
+    final cumulativeJson = json['cumulative'] as List<dynamic>? ?? const [];
+    return RevenueForecastResponse(
+      storeId: json['store_id'] as String? ?? '',
+      status: json['status'] as String? ?? 'insufficient_data',
+      message: json['message'] as String?,
+      asOfDay: json['as_of_day'] as String?,
+      horizonDays: (json['horizon_days'] as num?)?.toInt() ?? 30,
+      mape: (json['mape'] as num?)?.toDouble(),
+      displayBands: json['display_bands'] as bool? ?? false,
+      daily: dailyJson.whereType<Map<String, dynamic>>().map(RevenueForecastBandPoint.fromJson).toList(),
+      cumulative: cumulativeJson.whereType<Map<String, dynamic>>().map(RevenueForecastBandPoint.fromJson).toList(),
+    );
+  }
+}
+
 class ProfitRepository {
   ProfitRepository(this._dio, this._storeId);
 
@@ -487,6 +553,16 @@ class ProfitRepository {
     );
     return ProfitSkuDetailResponse.fromJson(response.data!);
   }
+
+  Future<RevenueForecastResponse?> getRevenueForecast() async {
+    final storeId = _storeId;
+    if (storeId == null || storeId.isEmpty) return null;
+
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/v1/stores/$storeId/profit/forecast/revenue',
+    );
+    return RevenueForecastResponse.fromJson(response.data!);
+  }
 }
 
 final profitRepositoryProvider = Provider<ProfitRepository>((ref) {
@@ -521,6 +597,10 @@ final profitSkuRankingProvider = FutureProvider<ProfitSkuListResponse?>((ref) as
 
 final profitSkuDetailProvider = FutureProvider.family<ProfitSkuDetailResponse?, String>((ref, sku) async {
   return ref.watch(profitRepositoryProvider).getSkuDetail(sku);
+});
+
+final revenueForecastProvider = FutureProvider<RevenueForecastResponse?>((ref) async {
+  return ref.watch(profitRepositoryProvider).getRevenueForecast();
 });
 
 String formatProfitCurrency(double value) {

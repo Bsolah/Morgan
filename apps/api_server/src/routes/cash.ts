@@ -10,6 +10,10 @@ import {
 } from "../lib/payout-match-service.js";
 import { getUncategorizedTransactions } from "../lib/plaid-transaction-sync-service.js";
 import { getCashRunway } from "../lib/cash-runway-service.js";
+import {
+  getCashProjection,
+  updateCashProjectionAssumptions,
+} from "../lib/cash-projection-service.js";
 import { requireAuth } from "../plugins/auth.js";
 
 const linkMatchSchema = z.object({
@@ -19,6 +23,16 @@ const linkMatchSchema = z.object({
 
 const unlinkMatchSchema = z.object({
   match_id: z.string().uuid(),
+});
+
+const cashForecastAssumptionsSchema = z.object({
+  expected_daily_ad_spend_usd: z.number().min(0).optional(),
+  planned_inventory_purchase_usd: z.number().min(0).optional(),
+  planned_inventory_purchase_day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
 });
 
 function resolveStoreId(request: { auth?: { store_ids: string[] } }): string | null {
@@ -173,5 +187,48 @@ export async function cashRoutes(app: FastifyInstance) {
     }
 
     return reply.send(await getUncategorizedTransactions(db, storeId));
+  });
+
+  app.get("/api/v1/cash/forecast/projection", { preHandler: requireAuth }, async (request, reply) => {
+    const storeId = resolveStoreId(request);
+    if (!storeId) {
+      return reply.status(400).send({ error: "No store in session", code: "no_store" });
+    }
+
+    const db = getDb();
+    if (!db) {
+      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+    }
+
+    try {
+      return reply.send(await getCashProjection(db, storeId));
+    } catch (error) {
+      request.log.error(error, "Failed to load cash projection");
+      return reply.status(503).send({ error: "Cash projection unavailable", code: "not_ready" });
+    }
+  });
+
+  app.patch("/api/v1/cash/forecast/assumptions", { preHandler: requireAuth }, async (request, reply) => {
+    const storeId = resolveStoreId(request);
+    if (!storeId) {
+      return reply.status(400).send({ error: "No store in session", code: "no_store" });
+    }
+
+    const parsed = cashForecastAssumptionsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Invalid assumptions payload", code: "invalid_payload" });
+    }
+
+    const db = getDb();
+    if (!db) {
+      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+    }
+
+    try {
+      return reply.send(await updateCashProjectionAssumptions(db, storeId, parsed.data));
+    } catch (error) {
+      request.log.error(error, "Failed to update cash projection assumptions");
+      return reply.status(503).send({ error: "Cash projection unavailable", code: "not_ready" });
+    }
   });
 }

@@ -4,6 +4,20 @@ export type RecommendationEffort = "low" | "medium" | "high";
 export type RecommendationConfidence = "high" | "medium" | "low";
 export type RecommendationSeverity = "critical" | "warning" | "info";
 
+export type RankingWeights = {
+  impact: number;
+  confidence: number;
+  urgency: number;
+  effort: number;
+};
+
+export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
+  impact: 1,
+  confidence: 1,
+  urgency: 1,
+  effort: 1,
+};
+
 const EFFORT_WEIGHT: Record<RecommendationEffort, number> = {
   low: 1,
   medium: 2,
@@ -24,6 +38,73 @@ const URGENCY_WEIGHT: Record<RecommendationSeverity, number> = {
 
 export const OPEN_RECOMMENDATIONS_LIMIT = 5;
 
+export function urgencyForCategory(
+  category: string,
+  evidence?: Array<Record<string, unknown>>,
+): RecommendationSeverity {
+  if (category === "inventory_reorder") {
+    const daysOfStock = evidence?.[0]?.days_of_stock;
+    if (typeof daysOfStock === "number" && daysOfStock < 7) {
+      return "critical";
+    }
+    return "warning";
+  }
+  if (category === "ad_waste" || category === "return_drain") {
+    return "warning";
+  }
+  if (category === "budget_reallocation") {
+    return "info";
+  }
+  return "warning";
+}
+
+export function recommendationCategoryLabel(category: string): string {
+  switch (category) {
+    case "inventory_reorder":
+      return "Inventory reorder";
+    case "inventory_liquidate":
+      return "Liquidate inventory";
+    case "budget_reallocation":
+      return "Budget reallocation";
+    case "price_increase":
+      return "Price increase";
+    default:
+      return leakTypeLabel(category);
+  }
+}
+
+export function midpointImpactUsd(impactLow: number, impactHigh: number): number {
+  if (impactLow > 0 && impactHigh > 0) {
+    return (impactLow + impactHigh) / 2;
+  }
+  return Math.max(impactLow, impactHigh, 0);
+}
+
+export function scoreRecommendationCandidate(input: {
+  impact_low: number;
+  impact_high: number;
+  confidence: RecommendationConfidence;
+  effort: RecommendationEffort;
+  urgency: RecommendationSeverity;
+  weights?: RankingWeights;
+}): number {
+  const weights = input.weights ?? DEFAULT_RANKING_WEIGHTS;
+  const impact = midpointImpactUsd(input.impact_low, input.impact_high);
+  const effort = EFFORT_WEIGHT[input.effort];
+  if (effort <= 0 || impact <= 0) return 0;
+
+  const score =
+    (impact *
+      weights.impact *
+      CONFIDENCE_WEIGHT[input.confidence] *
+      weights.confidence *
+      URGENCY_WEIGHT[input.urgency] *
+      weights.urgency) /
+    (effort * weights.effort);
+
+  return Math.round(score * 100) / 100;
+}
+
 export function effortForLeakType(leakType: string): RecommendationEffort {
   if (leakType === "ad_waste" || leakType === "discount_bleed") return "low";
   if (leakType === "dead_stock") return "high";
@@ -41,13 +122,18 @@ export function computeRecommendationRankScore(input: {
   confidence: RecommendationConfidence;
   effort: RecommendationEffort;
   severity: RecommendationSeverity;
+  weights?: RankingWeights;
 }): number {
   const impact = Math.max(0, input.impactUsd);
-  const effort = EFFORT_WEIGHT[input.effort];
-  if (effort <= 0 || impact <= 0) return 0;
-
-  const score = (impact * CONFIDENCE_WEIGHT[input.confidence] * URGENCY_WEIGHT[input.severity]) / effort;
-  return Math.round(score * 100) / 100;
+  const range = computeImpactRange(impact > 0 ? impact : null);
+  return scoreRecommendationCandidate({
+    impact_low: range.impact_low_usd ?? 0,
+    impact_high: range.impact_high_usd ?? 0,
+    confidence: input.confidence,
+    effort: input.effort,
+    urgency: input.severity,
+    weights: input.weights,
+  });
 }
 
 export function computeImpactRange(amountUsd: number | null): {
@@ -70,7 +156,7 @@ export function recommendationExpiresAt(referenceDay: string): string {
 }
 
 export function categoryLabelForLeakType(leakType: string): string {
-  return leakTypeLabel(leakType);
+  return recommendationCategoryLabel(leakType);
 }
 
 export function formatRecommendationImpactRange(

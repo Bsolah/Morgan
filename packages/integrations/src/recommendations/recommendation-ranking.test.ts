@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   computeImpactRange,
   computeRecommendationRankScore,
+  DEFAULT_RANKING_WEIGHTS,
   effortForLeakType,
   recommendationExpiresAt,
+  scoreRecommendationCandidate,
 } from "./recommendation-ranking.js";
 
 describe("recommendation-ranking", () => {
@@ -22,6 +24,27 @@ describe("recommendation-ranking", () => {
     });
 
     expect(highImpact).toBeGreaterThan(lowImpact);
+  });
+
+  it("applies configurable ranking weights", () => {
+    const baseline = scoreRecommendationCandidate({
+      impact_low: 1000,
+      impact_high: 1000,
+      confidence: "high",
+      effort: "low",
+      urgency: "warning",
+      weights: DEFAULT_RANKING_WEIGHTS,
+    });
+    const weighted = scoreRecommendationCandidate({
+      impact_low: 1000,
+      impact_high: 1000,
+      confidence: "high",
+      effort: "low",
+      urgency: "warning",
+      weights: { impact: 2, confidence: 1, urgency: 1, effort: 1 },
+    });
+
+    expect(weighted).toBeGreaterThan(baseline);
   });
 
   it("derives effort by leak type", () => {

@@ -11,6 +11,7 @@ import '../../../shared/widgets/morgan_surface.dart';
 import 'margin_trend_chart.dart';
 import 'margin_drivers_sheet.dart';
 import 'profit_leaks_section.dart';
+import 'revenue_forecast_section.dart';
 import 'profit_day_summary_sheet.dart';
 
 class ProfitDashboardScreen extends ConsumerWidget {
@@ -116,6 +117,8 @@ class ProfitDashboardScreen extends ConsumerWidget {
                 );
               },
             ),
+            const SizedBox(height: MorganSpace.xl),
+            const RevenueForecastSection(),
             const SizedBox(height: MorganSpace.xl),
             const ProfitLeaksSection(),
             const SizedBox(height: MorganSpace.xl),

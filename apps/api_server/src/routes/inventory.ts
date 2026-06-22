@@ -10,6 +10,7 @@ import {
   upsertSkuLeadTimeOverride,
 } from "../lib/inventory-config-service.js";
 import { getInventoryHealth, getInventorySkuDetail } from "../lib/inventory-health-service.js";
+import { getSkuDemandForecast } from "../lib/sku-demand-forecast-service.js";
 
 function canAccessStore(request: { auth?: { store_ids: string[] } }, storeId: string): boolean {
   return request.auth?.store_ids.includes(storeId) ?? false;
@@ -197,6 +198,30 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         request.log.error(error, "Failed to load inventory SKU detail");
         return reply.status(503).send({ error: "Inventory SKU unavailable", code: "not_ready" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/stores/:store_id/inventory/forecast/demand",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { store_id: storeId } = request.params as { store_id: string };
+
+      if (!canAccessStore(request, storeId)) {
+        return reply.status(403).send({ error: "Forbidden", code: "forbidden" });
+      }
+
+      const db = getDb();
+      if (!db) {
+        return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+      }
+
+      try {
+        return reply.send(await getSkuDemandForecast(db, storeId));
+      } catch (error) {
+        request.log.error(error, "Failed to load SKU demand forecast");
+        return reply.status(503).send({ error: "SKU demand forecast unavailable", code: "not_ready" });
       }
     },
   );

@@ -109,6 +109,16 @@ class InventorySkuDetailScreen extends ConsumerWidget {
                   label: '30d revenue',
                   value: money.format(detail.grossRevenue),
                 ),
+                if (detail.forecastUnits30d != null) ...[
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganMetricCard(
+                    label: '30d demand forecast',
+                    value: '${detail.forecastUnits30d!.round()} units',
+                    subtitle: detail.forecastModel == null
+                        ? null
+                        : 'Based on ${detail.forecastModel!.replaceAll('_', ' ')}',
+                  ),
+                ],
                 if (detail.overstock && detail.overstockValueUsd > 0) ...[
                   const SizedBox(height: MorganSpace.lg),
                   MorganSurface(

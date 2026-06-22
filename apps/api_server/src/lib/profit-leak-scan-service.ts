@@ -23,6 +23,8 @@ import {
 import { env } from "../config.js";
 import { loadStoreBriefingConfig } from "./briefing-generation-service.js";
 import { createAlertsForNewProfitLeaks } from "./profit-leak-alert-service.js";
+import { generateRecommendationCandidatesForStore } from "./recommendation-candidate-service.js";
+import { rankAndPromoteRecommendationCandidates } from "./recommendation-ranking-service.js";
 import { refreshProfitLeakSnapshots } from "./metric-snapshot-service.js";
 import {
   loadAvailableUnitsBySku,
@@ -573,6 +575,8 @@ export async function runProfitLeakScanForStore(
   await recordLeakScanComplete(db, storeId, scannedAt);
   await refreshProfitLeakSnapshots(db, storeId);
   await createAlertsForNewProfitLeaks(db, storeId, beforeKeys);
+  await generateRecommendationCandidatesForStore(db, storeId, referenceDay);
+  await rankAndPromoteRecommendationCandidates(db, storeId, referenceDay);
 
   return {
     store_id: storeId,

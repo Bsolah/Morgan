@@ -2,6 +2,7 @@ import {
   boolean,
   integer,
   jsonb,
+  index,
   numeric,
   pgEnum,
   pgTable,
@@ -1222,3 +1223,178 @@ export const plaidBankAccounts = pgTable(
     ),
   ],
 );
+
+export const revenueForecastRuns = pgTable(
+  "revenue_forecast_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    asOfDay: varchar("as_of_day", { length: 10 }).notNull(),
+    horizonDays: integer("horizon_days").notNull().default(30),
+    historyDays: integer("history_days").notNull(),
+    mape: numeric("mape", { precision: 8, scale: 4 }),
+    model: varchar("model", { length: 50 }).notNull().default("prophet"),
+    status: varchar("status", { length: 50 }).notNull(),
+    message: text("message"),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("revenue_forecast_runs_store_unique").on(table.storeId)],
+);
+
+export const revenueForecastPoints = pgTable(
+  "revenue_forecast_points",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => revenueForecastRuns.id, { onDelete: "cascade" }),
+    forecastDay: varchar("forecast_day", { length: 10 }).notNull(),
+    p10: numeric("p10", { precision: 18, scale: 4 }).notNull(),
+    p50: numeric("p50", { precision: 18, scale: 4 }).notNull(),
+    p90: numeric("p90", { precision: 18, scale: 4 }).notNull(),
+    cumulativeP10: numeric("cumulative_p10", { precision: 18, scale: 4 }).notNull(),
+    cumulativeP50: numeric("cumulative_p50", { precision: 18, scale: 4 }).notNull(),
+    cumulativeP90: numeric("cumulative_p90", { precision: 18, scale: 4 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("revenue_forecast_points_run_day_unique").on(table.runId, table.forecastDay),
+  ],
+);
+
+export const cashForecastAssumptions = pgTable("cash_forecast_assumptions", {
+  storeId: uuid("store_id")
+    .primaryKey()
+    .references(() => stores.id, { onDelete: "cascade" }),
+  expectedDailyAdSpendUsd: numeric("expected_daily_ad_spend_usd", { precision: 18, scale: 4 })
+    .notNull()
+    .default("0"),
+  plannedInventoryPurchaseUsd: numeric("planned_inventory_purchase_usd", { precision: 18, scale: 4 })
+    .notNull()
+    .default("0"),
+  plannedInventoryPurchaseDay: varchar("planned_inventory_purchase_day", { length: 10 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const skuDemandForecastRuns = pgTable(
+  "sku_demand_forecast_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    asOfDay: varchar("as_of_day", { length: 10 }).notNull(),
+    horizonDays: integer("horizon_days").notNull().default(30),
+    skuCount: integer("sku_count").notNull().default(0),
+    status: varchar("status", { length: 50 }).notNull(),
+    message: text("message"),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("sku_demand_forecast_runs_store_unique").on(table.storeId)],
+);
+
+export const skuDemandForecastItems = pgTable(
+  "sku_demand_forecast_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => skuDemandForecastRuns.id, { onDelete: "cascade" }),
+    sku: varchar("sku", { length: 255 }).notNull(),
+    revenueRank: integer("revenue_rank").notNull(),
+    model: varchar("model", { length: 50 }).notNull(),
+    historyDays: integer("history_days").notNull(),
+    zeroDayRatio: numeric("zero_day_ratio", { precision: 8, scale: 4 }),
+    avgDailyUnits: numeric("avg_daily_units", { precision: 18, scale: 4 }).notNull(),
+    forecastUnitsTotal: numeric("forecast_units_total", { precision: 18, scale: 4 }).notNull(),
+  },
+  (table) => [uniqueIndex("sku_demand_forecast_items_run_sku_unique").on(table.runId, table.sku)],
+);
+
+export const skuDemandForecastPoints = pgTable(
+  "sku_demand_forecast_points",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => skuDemandForecastRuns.id, { onDelete: "cascade" }),
+    sku: varchar("sku", { length: 255 }).notNull(),
+    forecastDay: varchar("forecast_day", { length: 10 }).notNull(),
+    units: numeric("units", { precision: 18, scale: 4 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("sku_demand_forecast_points_run_sku_day_unique").on(
+      table.runId,
+      table.sku,
+      table.forecastDay,
+    ),
+  ],
+);
+
+export const recommendationCandidates = pgTable(
+  "recommendation_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    engine: varchar("engine", { length: 50 }).notNull(),
+    category: varchar("category", { length: 100 }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    impactLowUsd: numeric("impact_low_usd", { precision: 18, scale: 4 }).notNull(),
+    impactHighUsd: numeric("impact_high_usd", { precision: 18, scale: 4 }).notNull(),
+    confidence: varchar("confidence", { length: 20 }).notNull(),
+    effort: varchar("effort", { length: 20 }).notNull(),
+    evidence: jsonb("evidence").$type<Array<Record<string, unknown>>>().notNull().default([]),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    similarityHash: varchar("similarity_hash", { length: 255 }).notNull(),
+    subjectSku: varchar("subject_sku", { length: 255 }),
+    sourceKey: varchar("source_key", { length: 255 }),
+    status: varchar("status", { length: 50 }).notNull().default("pending"),
+    generatedDay: varchar("generated_day", { length: 10 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("recommendation_candidates_store_hash_idx").on(table.storeId, table.similarityHash),
+    index("recommendation_candidates_store_day_idx").on(table.storeId, table.generatedDay),
+  ],
+);
+
+export const recommendations = pgTable(
+  "recommendations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    candidateId: uuid("candidate_id").references(() => recommendationCandidates.id, {
+      onDelete: "set null",
+    }),
+    engine: varchar("engine", { length: 50 }).notNull(),
+    category: varchar("category", { length: 100 }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    impactLowUsd: numeric("impact_low_usd", { precision: 18, scale: 4 }).notNull(),
+    impactHighUsd: numeric("impact_high_usd", { precision: 18, scale: 4 }).notNull(),
+    confidence: varchar("confidence", { length: 20 }).notNull(),
+    effort: varchar("effort", { length: 20 }).notNull(),
+    rankScore: numeric("rank_score", { precision: 18, scale: 4 }).notNull(),
+    rankPosition: integer("rank_position").notNull(),
+    subjectSku: varchar("subject_sku", { length: 255 }),
+    evidence: jsonb("evidence").$type<Array<Record<string, unknown>>>().notNull().default([]),
+    status: varchar("status", { length: 50 }).notNull().default("open"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    generatedDay: varchar("generated_day", { length: 10 }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("recommendations_store_status_idx").on(table.storeId, table.status),
+    index("recommendations_store_day_idx").on(table.storeId, table.generatedDay),
+  ],
+);
+

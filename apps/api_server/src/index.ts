@@ -26,9 +26,13 @@ import {
   stopBriefingRunner,
 } from "./lib/briefing-runner.js";
 import {
-  startProfitLeakScanRunner,
-  stopProfitLeakScanRunner,
-} from "./lib/profit-leak-scan-runner.js";
+  startRevenueForecastRunner,
+  stopRevenueForecastRunner,
+} from "./lib/revenue-forecast-runner.js";
+import {
+  startSkuDemandForecastRunner,
+  stopSkuDemandForecastRunner,
+} from "./lib/sku-demand-forecast-runner.js";
 import {
   startCashRunwayRunner,
   stopCashRunwayRunner,
@@ -69,6 +73,8 @@ startPlaidTransactionSyncRunner();
 startCashRunwayRunner();
 startBriefingRunner();
 startProfitLeakScanRunner();
+startRevenueForecastRunner();
+startSkuDemandForecastRunner();
 startQuickBooksTokenRefreshRunner();
 startQuickBooksSyncRunner();
 startGoogleAdsTokenRefreshRunner();
@@ -97,6 +103,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopCashRunwayRunner();
     stopBriefingRunner();
     stopProfitLeakScanRunner();
+    stopRevenueForecastRunner();
+    stopSkuDemandForecastRunner();
     stopQuickBooksTokenRefreshRunner();
     stopQuickBooksSyncRunner();
     stopGoogleAdsTokenRefreshRunner();

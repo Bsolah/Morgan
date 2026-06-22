@@ -330,6 +330,126 @@ class CashOverview {
   }
 }
 
+class CashProjectionAssumptions {
+  const CashProjectionAssumptions({
+    required this.expectedDailyAdSpendUsd,
+    required this.plannedInventoryPurchaseUsd,
+    this.plannedInventoryPurchaseDay,
+    required this.defaultsFromHistory,
+  });
+
+  final double expectedDailyAdSpendUsd;
+  final double plannedInventoryPurchaseUsd;
+  final String? plannedInventoryPurchaseDay;
+  final CashProjectionDefaults defaultsFromHistory;
+
+  factory CashProjectionAssumptions.fromJson(Map<String, dynamic> json) {
+    return CashProjectionAssumptions(
+      expectedDailyAdSpendUsd:
+          double.tryParse(json['expected_daily_ad_spend_usd'] as String? ?? '0') ?? 0,
+      plannedInventoryPurchaseUsd:
+          double.tryParse(json['planned_inventory_purchase_usd'] as String? ?? '0') ?? 0,
+      plannedInventoryPurchaseDay: json['planned_inventory_purchase_day'] as String?,
+      defaultsFromHistory: CashProjectionDefaults.fromJson(
+        json['defaults_from_history'] as Map<String, dynamic>? ?? {},
+      ),
+    );
+  }
+}
+
+class CashProjectionDefaults {
+  const CashProjectionDefaults({
+    required this.avgDailyRecurringOutflowUsd,
+    required this.avgDailyVariableOutflowUsd,
+    required this.avgDailyAdSpendUsd,
+  });
+
+  final double avgDailyRecurringOutflowUsd;
+  final double avgDailyVariableOutflowUsd;
+  final double avgDailyAdSpendUsd;
+
+  factory CashProjectionDefaults.fromJson(Map<String, dynamic> json) {
+    return CashProjectionDefaults(
+      avgDailyRecurringOutflowUsd:
+          double.tryParse(json['avg_daily_recurring_outflow_usd'] as String? ?? '0') ?? 0,
+      avgDailyVariableOutflowUsd:
+          double.tryParse(json['avg_daily_variable_outflow_usd'] as String? ?? '0') ?? 0,
+      avgDailyAdSpendUsd: double.tryParse(json['avg_daily_ad_spend_usd'] as String? ?? '0') ?? 0,
+    );
+  }
+}
+
+class CashProjectionPoint {
+  const CashProjectionPoint({
+    required this.day,
+    required this.balanceUsd,
+    required this.inflowsUsd,
+    required this.outflowsUsd,
+  });
+
+  final String day;
+  final double balanceUsd;
+  final double inflowsUsd;
+  final double outflowsUsd;
+
+  factory CashProjectionPoint.fromJson(Map<String, dynamic> json) {
+    return CashProjectionPoint(
+      day: json['day'] as String? ?? '',
+      balanceUsd: (json['balance_usd'] as num?)?.toDouble() ?? 0,
+      inflowsUsd: (json['inflows_usd'] as num?)?.toDouble() ?? 0,
+      outflowsUsd: (json['outflows_usd'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class CashProjection {
+  const CashProjection({
+    required this.bankConnected,
+    required this.available,
+    this.cta,
+    this.asOfDay,
+    this.startingBalance,
+    this.currency,
+    required this.horizonDays,
+    this.zeroCrossingDay,
+    this.assumptions,
+    required this.points,
+    this.message,
+  });
+
+  final bool bankConnected;
+  final bool available;
+  final String? cta;
+  final String? asOfDay;
+  final String? startingBalance;
+  final String? currency;
+  final int horizonDays;
+  final String? zeroCrossingDay;
+  final CashProjectionAssumptions? assumptions;
+  final List<CashProjectionPoint> points;
+  final String? message;
+
+  factory CashProjection.fromJson(Map<String, dynamic> json) {
+    return CashProjection(
+      bankConnected: json['bank_connected'] as bool? ?? false,
+      available: json['available'] as bool? ?? false,
+      cta: json['cta'] as String?,
+      asOfDay: json['as_of_day'] as String?,
+      startingBalance: json['starting_balance'] as String?,
+      currency: json['currency'] as String?,
+      horizonDays: json['horizon_days'] as int? ?? 60,
+      zeroCrossingDay: json['zero_crossing_day'] as String?,
+      assumptions: json['assumptions'] == null
+          ? null
+          : CashProjectionAssumptions.fromJson(json['assumptions'] as Map<String, dynamic>),
+      points: (json['points'] as List<dynamic>? ?? [])
+          .map((item) => CashProjectionPoint.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      message: json['message'] as String?,
+    );
+  }
+}
+
 class CashRepository {
   CashRepository(this._client);
 
@@ -348,6 +468,29 @@ class CashRepository {
   Future<CashRunway> getRunway() async {
     final response = await _client.get<Map<String, dynamic>>('/api/v1/cash/runway');
     return CashRunway.fromJson(response.data!);
+  }
+
+  Future<CashProjection> getProjection() async {
+    final response = await _client.get<Map<String, dynamic>>('/api/v1/cash/forecast/projection');
+    return CashProjection.fromJson(response.data!);
+  }
+
+  Future<CashProjection> updateProjectionAssumptions({
+    double? expectedDailyAdSpendUsd,
+    double? plannedInventoryPurchaseUsd,
+    String? plannedInventoryPurchaseDay,
+  }) async {
+    final response = await _client.patch<Map<String, dynamic>>(
+      '/api/v1/cash/forecast/assumptions',
+      data: {
+        if (expectedDailyAdSpendUsd != null) 'expected_daily_ad_spend_usd': expectedDailyAdSpendUsd,
+        if (plannedInventoryPurchaseUsd != null)
+          'planned_inventory_purchase_usd': plannedInventoryPurchaseUsd,
+        if (plannedInventoryPurchaseDay != null)
+          'planned_inventory_purchase_day': plannedInventoryPurchaseDay,
+      },
+    );
+    return CashProjection.fromJson(response.data!);
   }
 
   Future<CashOverview> linkMatch({
@@ -387,4 +530,8 @@ final unmatchedCashProvider = FutureProvider<UnmatchedCash>((ref) async {
 
 final cashRunwayProvider = FutureProvider<CashRunway>((ref) async {
   return ref.watch(cashRepositoryProvider).getRunway();
+});
+
+final cashProjectionProvider = FutureProvider<CashProjection>((ref) async {
+  return ref.watch(cashRepositoryProvider).getProjection();
 });

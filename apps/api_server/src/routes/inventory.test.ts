@@ -114,4 +114,38 @@ describe("inventory routes", () => {
       expect.arrayContaining([{ sku: "TEE-BLUE", lead_time_days: 10 }]),
     );
   });
+
+  it("GET /api/v1/stores/:store_id/inventory/forecast/demand requires auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/stores/00000000-0000-4000-8000-000000000002/inventory/forecast/demand",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/v1/stores/:store_id/inventory/forecast/demand returns forecast payload", async () => {
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/stores/00000000-0000-4000-8000-000000000002/inventory/forecast/demand",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    if (res.statusCode === 403) {
+      expect(res.json().code).toBe("forbidden");
+      return;
+    }
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      horizon_days: 30,
+      sku_count: expect.any(Number),
+      skus: expect.any(Array),
+      status: expect.stringMatching(/ready|insufficient_data/),
+    });
+  });
 });

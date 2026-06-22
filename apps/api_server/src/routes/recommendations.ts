@@ -9,6 +9,9 @@ import {
   listOpenRecommendations,
 } from "../lib/recommendation-service.js";
 import {
+  listPendingRecommendationCandidates,
+} from "../lib/recommendation-candidate-service.js";
+import {
   buildActionAcceptedConfirmation,
   buildActionDismissedConfirmation,
 } from "@morgan/integrations";
@@ -35,6 +38,25 @@ export async function recommendationsRoutes(app: FastifyInstance): Promise<void>
 
     const result = await listOpenRecommendations(db, storeId);
     return result;
+  });
+
+  app.get("/api/v1/recommendations/candidates", { preHandler: requireAuth }, async (request, reply) => {
+    const storeId = storeIdFromAuth(request);
+    if (!storeId) {
+      return reply.status(400).send({ error: "No store in session" });
+    }
+
+    const db = getDb();
+    if (!db) {
+      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+    }
+
+    const candidates = await listPendingRecommendationCandidates(db, storeId);
+    return {
+      store_id: storeId,
+      count: candidates.length,
+      candidates,
+    };
   });
 
   app.get(

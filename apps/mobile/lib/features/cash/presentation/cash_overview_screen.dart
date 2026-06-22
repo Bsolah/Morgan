@@ -11,6 +11,7 @@ import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 import 'cash_flow_chart.dart';
+import 'cash_projection_section.dart';
 
 class CashOverviewScreen extends ConsumerWidget {
   const CashOverviewScreen({super.key});
@@ -67,6 +68,8 @@ class CashOverviewScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
+                        const SizedBox(height: MorganSpace.lg),
+                        const CashProjectionSection(),
                         const SizedBox(height: MorganSpace.xl),
                       ],
                       _ExpectedPayoutsSection(payouts: overview.expectedPayouts, money: money),

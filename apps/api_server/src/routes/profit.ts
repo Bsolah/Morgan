@@ -5,6 +5,7 @@ import { getDb } from "../lib/db.js";
 import { getProfitSkuDetail, getProfitSkuRanking } from "../lib/sku-economics-service.js";
 import { getProfitDaySummary, getProfitOverview, getMarginDrivers } from "../lib/profit-overview-service.js";
 import { getProfitLeakDetail, listActiveProfitLeaks } from "../lib/profit-leak-service.js";
+import { getRevenueForecast } from "../lib/revenue-forecast-service.js";
 
 function canAccessStore(request: { auth?: { store_ids: string[] } }, storeId: string): boolean {
   return request.auth?.store_ids.includes(storeId) ?? false;
@@ -217,6 +218,30 @@ export async function profitRoutes(app: FastifyInstance): Promise<void> {
       } catch (error) {
         request.log.error(error, "Failed to load profit SKU detail");
         return reply.status(503).send({ error: "Profit data unavailable", code: "not_ready" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/stores/:store_id/profit/forecast/revenue",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { store_id: storeId } = request.params as { store_id: string };
+
+      if (!canAccessStore(request, storeId)) {
+        return reply.status(403).send({ error: "Forbidden", code: "forbidden" });
+      }
+
+      const db = getDb();
+      if (!db) {
+        return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+      }
+
+      try {
+        return await getRevenueForecast(db, storeId);
+      } catch (error) {
+        request.log.error(error, "Failed to load revenue forecast");
+        return reply.status(503).send({ error: "Revenue forecast unavailable", code: "not_ready" });
       }
     },
   );
