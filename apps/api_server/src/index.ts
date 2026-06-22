@@ -26,6 +26,10 @@ import {
   stopBriefingRunner,
 } from "./lib/briefing-runner.js";
 import {
+  startProfitLeakScanRunner,
+  stopProfitLeakScanRunner,
+} from "./lib/profit-leak-scan-runner.js";
+import {
   startCashRunwayRunner,
   stopCashRunwayRunner,
 } from "./lib/cash-runway-runner.js";
@@ -64,6 +68,7 @@ startMetaInsightsSyncRunner();
 startPlaidTransactionSyncRunner();
 startCashRunwayRunner();
 startBriefingRunner();
+startProfitLeakScanRunner();
 startQuickBooksTokenRefreshRunner();
 startQuickBooksSyncRunner();
 startGoogleAdsTokenRefreshRunner();
@@ -91,6 +96,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopPlaidTransactionSyncRunner();
     stopCashRunwayRunner();
     stopBriefingRunner();
+    stopProfitLeakScanRunner();
     stopQuickBooksTokenRefreshRunner();
     stopQuickBooksSyncRunner();
     stopGoogleAdsTokenRefreshRunner();

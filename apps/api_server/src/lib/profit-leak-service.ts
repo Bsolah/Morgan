@@ -1,6 +1,7 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { profitLeaks, type Database } from "@morgan/db";
 import { formatLeakEvidenceRows, leakBody, leakTitle, leakTypeLabel } from "@morgan/integrations";
+import { getLastLeakScanAt } from "./profit-leak-scan-service.js";
 
 export type ProfitLeakListItemView = {
   id: string;
@@ -41,22 +42,19 @@ function toAmount(value: unknown): number | null {
 }
 
 export async function listActiveProfitLeaks(db: Database, storeId: string): Promise<ProfitLeakListView> {
-  const items = await db
-    .select()
-    .from(profitLeaks)
-    .where(and(eq(profitLeaks.storeId, storeId), eq(profitLeaks.status, "active")))
-    .orderBy(desc(profitLeaks.amountAtRiskUsd))
-    .limit(20);
-
-  const [scanRow] = await db
-    .select({ last_scan_at: sql<string | null>`max(${profitLeaks.updatedAt})` })
-    .from(profitLeaks)
-    .where(eq(profitLeaks.storeId, storeId))
-    .limit(1);
+  const [scanRow, items] = await Promise.all([
+    getLastLeakScanAt(db, storeId),
+    db
+      .select()
+      .from(profitLeaks)
+      .where(and(eq(profitLeaks.storeId, storeId), eq(profitLeaks.status, "active")))
+      .orderBy(desc(profitLeaks.amountAtRiskUsd))
+      .limit(20),
+  ]);
 
   return {
     store_id: storeId,
-    last_scan_at: scanRow?.last_scan_at ? new Date(scanRow.last_scan_at).toISOString() : null,
+    last_scan_at: scanRow,
     items: items.map((row) => ({
       id: row.id,
       leak_type: row.leakType,

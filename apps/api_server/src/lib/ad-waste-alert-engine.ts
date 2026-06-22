@@ -1,6 +1,8 @@
+import type { Database } from "@morgan/db";
 import type { AlertRecord } from "./alerts-data.js";
-import { listStoreAlerts, newAlertId, upsertStoreAlert } from "./alerts-store.js";
+import { newAlertId } from "./alerts-store.js";
 import { maybeSendAlertPush } from "./alerts-push.js";
+import { clearAlertByDedupeKey, findAlertByDedupeKey, listAlerts, saveAlert } from "./alerts-repository.js";
 
 export type CampaignDailyPoas = {
   date: string;
@@ -95,7 +97,7 @@ function buildDemoDailyPoas(poas: number, spendPerDay: number): CampaignDailyPoa
   return days;
 }
 
-/** Demo campaigns — replace with mart_ad_performance when pipeline lands. */
+/** Demo campaigns for stub stores. */
 export function sampleCampaignMetrics(storeId: string): CampaignMetrics[] {
   if (storeId.endsWith("0002") || storeId === "dev-local-store") {
     return [
@@ -114,32 +116,49 @@ export function sampleCampaignMetrics(storeId: string): CampaignMetrics[] {
   return [];
 }
 
-export function evaluateAdWasteAlerts(
+function adWasteDedupeKey(campaignId: string): string {
+  return `ad_waste:${campaignId}`;
+}
+
+export async function evaluateAdWasteAlerts(
+  db: Database | null,
   storeId: string,
   campaigns: CampaignMetrics[] = sampleCampaignMetrics(storeId),
   now: Date = new Date(),
-): AlertRecord[] {
+): Promise<AlertRecord[]> {
   const created: AlertRecord[] = [];
+  const activeKeys = new Set<string>();
 
   for (const metrics of campaigns) {
+    const dedupeKey = adWasteDedupeKey(metrics.campaign_id);
     const alert = buildAdWasteAlert(storeId, metrics, now);
-    if (!alert) continue;
 
-    const existing = listStoreAlerts(storeId).find(
-      (item) =>
-        item.type === "ad_waste" &&
-        item.metric_snapshot.campaign_id === metrics.campaign_id,
-    );
+    if (!alert) {
+      await clearAlertByDedupeKey(db, storeId, dedupeKey);
+      continue;
+    }
 
+    activeKeys.add(dedupeKey);
+    const existing = await findAlertByDedupeKey(db, storeId, dedupeKey);
     if (existing) {
       alert.id = existing.id;
       alert.read_at = existing.read_at;
       alert.created_at = existing.created_at;
     }
 
-    const saved = upsertStoreAlert(storeId, alert);
-    maybeSendAlertPush(storeId, saved, now);
+    const saved = await saveAlert(db, alert, dedupeKey);
+    await maybeSendAlertPush(db, storeId, saved, now);
     created.push(saved);
+  }
+
+  const existingAlerts = await listAlerts(db, storeId);
+  for (const alert of existingAlerts) {
+    if (alert.type !== "ad_waste") continue;
+    const campaignId = String(alert.metric_snapshot.campaign_id ?? "");
+    const dedupeKey = adWasteDedupeKey(campaignId);
+    if (!activeKeys.has(dedupeKey)) {
+      await clearAlertByDedupeKey(db, storeId, dedupeKey);
+    }
   }
 
   return created;

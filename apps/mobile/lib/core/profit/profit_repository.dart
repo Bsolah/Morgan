@@ -135,6 +135,10 @@ class ProfitOverviewResponse {
     required this.targetMarginPct,
     required this.belowTarget,
     required this.trend,
+    required this.activeLeakCount,
+    required this.leakCountsByType,
+    required this.amountAtRiskUsd,
+    this.lastLeakScanAt,
   });
 
   final String storeId;
@@ -146,9 +150,19 @@ class ProfitOverviewResponse {
   final double targetMarginPct;
   final bool belowTarget;
   final List<DailyMarginTrendPoint> trend;
+  final int activeLeakCount;
+  final Map<String, int> leakCountsByType;
+  final int amountAtRiskUsd;
+  final DateTime? lastLeakScanAt;
 
   factory ProfitOverviewResponse.fromJson(Map<String, dynamic> json) {
     final trendJson = json['trend'] as List<dynamic>? ?? const [];
+    final leakCountsRaw = json['leak_counts_by_type'] as Map<String, dynamic>? ?? const {};
+    final leakCounts = <String, int>{};
+    for (final entry in leakCountsRaw.entries) {
+      leakCounts[entry.key] = (entry.value as num?)?.toInt() ?? 0;
+    }
+
     return ProfitOverviewResponse(
       storeId: json['store_id'] as String? ?? '',
       referenceDay: json['reference_day'] as String? ?? '',
@@ -159,6 +173,10 @@ class ProfitOverviewResponse {
       targetMarginPct: (json['target_margin_pct'] as num?)?.toDouble() ?? 40,
       belowTarget: json['below_target'] as bool? ?? false,
       trend: trendJson.whereType<Map<String, dynamic>>().map(DailyMarginTrendPoint.fromJson).toList(),
+      activeLeakCount: (json['active_leak_count'] as num?)?.toInt() ?? 0,
+      leakCountsByType: leakCounts,
+      amountAtRiskUsd: (json['amount_at_risk_usd'] as num?)?.toInt() ?? 0,
+      lastLeakScanAt: DateTime.tryParse(json['last_leak_scan_at'] as String? ?? ''),
     );
   }
 }

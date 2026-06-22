@@ -355,7 +355,7 @@ async function refreshFromPostgres(
   });
 }
 
-async function refreshProfitLeakSnapshots(db: Database, storeId: string): Promise<void> {
+export async function refreshProfitLeakSnapshots(db: Database, storeId: string): Promise<void> {
   const asOf = new Date();
   const leakRows = await db
     .select({

@@ -9,6 +9,7 @@ import {
   type MarginDriver,
 } from "@morgan/integrations";
 import { loadStoreBriefingConfig } from "./briefing-generation-service.js";
+import { summarizeActiveProfitLeaks } from "./profit-leak-scan-service.js";
 import { getSqlAgentService } from "./sql-agent-service.js";
 
 export const DEFAULT_TARGET_MARGIN_PCT = 40;
@@ -32,6 +33,10 @@ export type ProfitOverviewView = {
   target_margin_pct: number;
   below_target: boolean;
   trend: DailyMarginTrendPoint[];
+  active_leak_count: number;
+  leak_counts_by_type: Record<string, number>;
+  amount_at_risk_usd: number;
+  last_leak_scan_at: string | null;
 };
 
 export type ProfitDaySummaryView = {
@@ -251,9 +256,10 @@ export async function getProfitOverview(
   const priorEnd = addDays(currentStart, -1);
   const priorStart = addDays(priorEnd, -(windowDays - 1));
 
-  const [rows, targetMarginPct] = await Promise.all([
+  const [rows, targetMarginPct, leakSummary] = await Promise.all([
     fetchOrdersDailyRows(storeId, priorStart, referenceDay),
     loadTargetMarginPct(db, storeId),
+    summarizeActiveProfitLeaks(db, storeId),
   ]);
 
   const currentRows = rows.filter((row) => row.day >= currentStart && row.day <= referenceDay);
@@ -276,6 +282,10 @@ export async function getProfitOverview(
     target_margin_pct: targetMarginPct,
     below_target: currentMarginPct != null ? currentMarginPct < targetMarginPct : false,
     trend: buildTrendPoints(currentRows),
+    active_leak_count: leakSummary.active_leak_count,
+    leak_counts_by_type: leakSummary.leak_counts_by_type,
+    amount_at_risk_usd: leakSummary.amount_at_risk_usd,
+    last_leak_scan_at: leakSummary.last_leak_scan_at,
   };
 }
 

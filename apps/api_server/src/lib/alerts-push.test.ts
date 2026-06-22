@@ -24,14 +24,15 @@ describe("alerts push", () => {
     resetAlertsStore();
   });
 
-  it("blocks warning pushes during quiet hours", () => {
+  it("blocks warning pushes during quiet hours", async () => {
     setNotificationPrefs("store-1", {
       quiet_hours_enabled: true,
       quiet_hours_start: 22,
       quiet_hours_end: 5,
     });
 
-    const sent = maybeSendAlertPush(
+    const sent = await maybeSendAlertPush(
+      null,
       "store-1",
       sampleAlert(),
       new Date("2026-06-17T23:00:00.000Z"),
@@ -41,7 +42,7 @@ describe("alerts push", () => {
     expect(getPushLog()).toHaveLength(0);
   });
 
-  it("allows critical cash crunch to bypass quiet hours", () => {
+  it("allows critical cash crunch to bypass quiet hours", async () => {
     setNotificationPrefs("store-1", {
       quiet_hours_enabled: true,
       quiet_hours_start: 22,
@@ -56,7 +57,8 @@ describe("alerts push", () => {
 
     expect(shouldBypassQuietHours(alert)).toBe(true);
 
-    const sent = maybeSendAlertPush(
+    const sent = await maybeSendAlertPush(
+      null,
       "store-1",
       alert,
       new Date("2026-06-17T23:00:00.000Z"),

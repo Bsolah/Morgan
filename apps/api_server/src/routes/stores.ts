@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../plugins/auth.js";
 import { getDb } from "../lib/db.js";
 import { getStoreAlerts } from "../lib/alerts-service.js";
-import { getStoreAlert, markAlertRead } from "../lib/alerts-store.js";
+import { getAlert, markAlertAsRead } from "../lib/alerts-repository.js";
 import { acceptRecommendation, dismissRecommendation } from "../lib/recommendation-actions.js";
 import { getRecommendationDetail } from "../lib/recommendation-detail.js";
 import { getStoreRecommendations } from "../lib/recommendations.js";
@@ -116,7 +116,8 @@ export async function storeRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Access denied for this store" });
       }
 
-      return reply.send(getStoreAlerts(storeId));
+      const db = getDb();
+      return reply.send(await getStoreAlerts(db, storeId));
     },
   );
 
@@ -130,8 +131,9 @@ export async function storeRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Access denied for this store" });
       }
 
-      getStoreAlerts(storeId);
-      const alert = getStoreAlert(storeId, alertId);
+      const db = getDb();
+      await getStoreAlerts(db, storeId);
+      const alert = await getAlert(db, storeId, alertId);
       if (!alert) {
         return reply.status(404).send({ error: "Alert not found" });
       }
@@ -150,7 +152,8 @@ export async function storeRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Access denied for this store" });
       }
 
-      const updated = markAlertRead(storeId, alertId, new Date().toISOString());
+      const db = getDb();
+      const updated = await markAlertAsRead(db, storeId, alertId, new Date().toISOString());
       if (!updated) {
         return reply.status(404).send({ error: "Alert not found" });
       }

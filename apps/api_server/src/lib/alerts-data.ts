@@ -1,6 +1,11 @@
 export type AlertSeverity = "info" | "warning" | "critical";
 
-export type AlertType = "margin_drop" | "ad_waste" | "stockout_risk" | "cash_crunch";
+export type AlertType =
+  | "margin_drop"
+  | "ad_waste"
+  | "stockout_risk"
+  | "cash_crunch"
+  | "profit_leak";
 
 export type AlertLinks = {
   brief?: string;

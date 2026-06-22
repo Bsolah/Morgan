@@ -83,18 +83,18 @@ describe("ad waste alert engine", () => {
     expect(alert.links.recommendation).toBe("/recommendations/rec-001");
   });
 
-  it("sends push for warning+ when enabled", () => {
-    evaluateAdWasteAlerts("store-1", [qualifyingCampaign()]);
-    const alerts = evaluateAdWasteAlerts("store-1", [qualifyingCampaign()]);
+  it("sends push for warning+ when enabled", async () => {
+    await evaluateAdWasteAlerts(null, "store-1", [qualifyingCampaign()]);
+    const alerts = await evaluateAdWasteAlerts(null, "store-1", [qualifyingCampaign()]);
 
     expect(alerts).toHaveLength(1);
     expect(wasPushSent(alerts[0]!.id)).toBe(true);
     expect(getPushLog()).toHaveLength(1);
   });
 
-  it("does not duplicate alerts for the same campaign", () => {
-    evaluateAdWasteAlerts("store-1", [qualifyingCampaign()]);
-    evaluateAdWasteAlerts("store-1", [qualifyingCampaign()]);
+  it("does not duplicate alerts for the same campaign", async () => {
+    await evaluateAdWasteAlerts(null, "store-1", [qualifyingCampaign()]);
+    await evaluateAdWasteAlerts(null, "store-1", [qualifyingCampaign()]);
 
     expect(getPushLog()).toHaveLength(1);
   });

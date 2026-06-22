@@ -99,11 +99,20 @@ export async function loadSkuTitlesBySku(
   const index = await writer.loadProductIndex(storeId);
   const map = new Map<string, string>();
 
+  return map;
+}
+
+export async function loadSkuCategoryBySku(
+  bronzeStoragePath: string,
+  storeId: string,
+): Promise<Map<string, string>> {
+  const writer = new FileCatalogWriter(bronzeStoragePath);
+  const index = await writer.loadProductIndex(storeId);
+  const map = new Map<string, string>();
+
   for (const row of index.values()) {
-    if (!row.sku || !row.title) continue;
-    if (!map.has(row.sku)) {
-      map.set(row.sku, row.title);
-    }
+    if (!row.sku) continue;
+    map.set(row.sku, row.product_id);
   }
 
   return map;

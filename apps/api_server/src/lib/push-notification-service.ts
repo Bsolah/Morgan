@@ -8,6 +8,38 @@ export type PushNotificationResult = {
   reason?: string;
 };
 
+export async function sendFcmToStore(
+  db: Database,
+  storeId: string,
+  input: {
+    title: string;
+    body: string;
+    data: Record<string, string>;
+  },
+): Promise<PushNotificationResult> {
+  const tokens = await db
+    .select({ token: pushDeviceTokens.token })
+    .from(pushDeviceTokens)
+    .where(eq(pushDeviceTokens.storeId, storeId));
+
+  if (!env.FCM_SERVER_KEY) {
+    return { sent: 0, skipped: true, reason: "fcm_not_configured" };
+  }
+
+  if (tokens.length === 0) {
+    return { sent: 0, skipped: true, reason: "no_device_tokens" };
+  }
+
+  const sent = await sendFcmNotification(
+    tokens.map((row) => row.token),
+    input.title,
+    input.body,
+    input.data,
+  );
+
+  return { sent, skipped: false };
+}
+
 async function sendFcmNotification(
   tokens: string[],
   title: string,
@@ -45,38 +77,14 @@ export async function sendBriefUpdatedPush(
   const title = `Updated brief: ${headline}`;
   const deepLink = getMobileDeepLink("home");
 
-  const tokens = await db
-    .select({ token: pushDeviceTokens.token })
-    .from(pushDeviceTokens)
-    .where(eq(pushDeviceTokens.storeId, storeId));
-
-  if (!env.FCM_SERVER_KEY) {
-    return {
-      sent: 0,
-      skipped: true,
-      reason: "fcm_not_configured",
-    };
-  }
-
-  if (tokens.length === 0) {
-    return {
-      sent: 0,
-      skipped: true,
-      reason: "no_device_tokens",
-    };
-  }
-
-  const sent = await sendFcmNotification(
-    tokens.map((row) => row.token),
+  return sendFcmToStore(db, storeId, {
     title,
-    headline,
-    {
+    body: headline,
+    data: {
       type: "brief_updated",
       deep_link: deepLink,
     },
-  );
-
-  return { sent, skipped: false };
+  });
 }
 
 export async function registerPushDeviceToken(

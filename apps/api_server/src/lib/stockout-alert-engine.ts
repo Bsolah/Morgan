@@ -1,6 +1,8 @@
+import type { Database } from "@morgan/db";
 import type { AlertRecord, AlertSeverity } from "./alerts-data.js";
-import { listStoreAlerts, newAlertId, upsertStoreAlert } from "./alerts-store.js";
+import { newAlertId } from "./alerts-store.js";
 import { maybeSendAlertPush } from "./alerts-push.js";
+import { clearAlertByDedupeKey, findAlertByDedupeKey, listAlerts, saveAlert } from "./alerts-repository.js";
 
 export type SkuInventoryMetrics = {
   sku_id: string;
@@ -80,7 +82,7 @@ export function buildStockoutAlert(
   };
 }
 
-/** Demo SKUs — replace with mart_inventory_health when pipeline lands. */
+/** Demo SKUs for stub stores. */
 export function sampleSkuInventoryMetrics(storeId: string): SkuInventoryMetrics[] {
   if (storeId.endsWith("0002") || storeId === "dev-local-store") {
     return [
@@ -98,32 +100,48 @@ export function sampleSkuInventoryMetrics(storeId: string): SkuInventoryMetrics[
   return [];
 }
 
-export function evaluateStockoutAlerts(
+function stockoutDedupeKey(skuId: string): string {
+  return `stockout_risk:${skuId}`;
+}
+
+export async function evaluateStockoutAlerts(
+  db: Database | null,
   storeId: string,
   skus: SkuInventoryMetrics[] = sampleSkuInventoryMetrics(storeId),
   now: Date = new Date(),
-): AlertRecord[] {
+): Promise<AlertRecord[]> {
   const created: AlertRecord[] = [];
+  const activeKeys = new Set<string>();
 
   for (const metrics of skus) {
+    const dedupeKey = stockoutDedupeKey(metrics.sku_id);
     const alert = buildStockoutAlert(storeId, metrics, now);
-    if (!alert) continue;
+    if (!alert) {
+      await clearAlertByDedupeKey(db, storeId, dedupeKey);
+      continue;
+    }
 
-    const existing = listStoreAlerts(storeId).find(
-      (item) =>
-        item.type === "stockout_risk" &&
-        item.metric_snapshot.sku_id === metrics.sku_id,
-    );
-
+    activeKeys.add(dedupeKey);
+    const existing = await findAlertByDedupeKey(db, storeId, dedupeKey);
     if (existing) {
       alert.id = existing.id;
       alert.read_at = existing.read_at;
       alert.created_at = existing.created_at;
     }
 
-    const saved = upsertStoreAlert(storeId, alert);
-    maybeSendAlertPush(storeId, saved, now);
+    const saved = await saveAlert(db, alert, dedupeKey);
+    await maybeSendAlertPush(db, storeId, saved, now);
     created.push(saved);
+  }
+
+  const existingAlerts = await listAlerts(db, storeId);
+  for (const alert of existingAlerts) {
+    if (alert.type !== "stockout_risk") continue;
+    const skuId = String(alert.metric_snapshot.sku_id ?? "");
+    const dedupeKey = stockoutDedupeKey(skuId);
+    if (!activeKeys.has(dedupeKey)) {
+      await clearAlertByDedupeKey(db, storeId, dedupeKey);
+    }
   }
 
   return created;

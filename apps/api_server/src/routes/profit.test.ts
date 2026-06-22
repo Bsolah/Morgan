@@ -59,6 +59,9 @@ describe("profit routes", () => {
       window_days: 30,
       target_margin_pct: expect.any(Number),
       trend: expect.any(Array),
+      active_leak_count: expect.any(Number),
+      leak_counts_by_type: expect.any(Object),
+      amount_at_risk_usd: expect.any(Number),
     });
   });
 

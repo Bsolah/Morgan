@@ -10,6 +10,10 @@ import {
   generateDailyBriefing,
   generateDueDailyBriefings,
 } from "../lib/briefing-generation-service.js";
+import {
+  runProfitLeakScanForStore,
+  scanDueProfitLeakScans,
+} from "../lib/profit-leak-scan-service.js";
 
 const refreshBodySchema = z.object({
   store_id: z.string().uuid(),
@@ -21,6 +25,11 @@ const snapshotRefreshBodySchema = z.object({
 });
 
 const briefingGenerateBodySchema = z.object({
+  store_id: z.string().uuid().optional(),
+  force: z.boolean().default(false),
+});
+
+const leakScanBodySchema = z.object({
   store_id: z.string().uuid().optional(),
   force: z.boolean().default(false),
 });
@@ -90,5 +99,27 @@ export async function registerWarehouseInternalRoutes(app: FastifyInstance): Pro
 
     const generatedCount = await generateDueDailyBriefings(db);
     return reply.send({ status: "generated", generated_count: generatedCount });
+  });
+
+  app.post("/api/v1/internal/profit-leaks/scan", async (request, reply) => {
+    const internalKey = request.headers["x-compliance-internal-key"];
+    if (!env.COMPLIANCE_INTERNAL_KEY || internalKey !== env.COMPLIANCE_INTERNAL_KEY) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const db = (await import("../lib/db.js")).getDb();
+    if (!db) {
+      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+    }
+
+    const body = leakScanBodySchema.parse(request.body ?? {});
+
+    if (body.store_id) {
+      const result = await runProfitLeakScanForStore(db, body.store_id, { force: body.force });
+      return reply.send({ status: "scanned", results: [result] });
+    }
+
+    const results = await scanDueProfitLeakScans(db, { force: body.force });
+    return reply.send({ status: "scanned", results });
   });
 }

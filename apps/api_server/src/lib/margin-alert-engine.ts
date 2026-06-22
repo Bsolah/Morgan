@@ -1,12 +1,9 @@
+import type { Database } from "@morgan/db";
 import type { AlertRecord, AlertSeverity } from "./alerts-data.js";
-import {
-  newAlertId,
-  listStoreAlerts,
-  upsertStoreAlert,
-} from "./alerts-store.js";
+import { newAlertId } from "./alerts-store.js";
 import { maybeSendAlertPush } from "./alerts-push.js";
-
-export { maybeSendAlertPush };
+import { clearAlertByDedupeKey, findAlertByDedupeKey, saveAlert } from "./alerts-repository.js";
+import { sampleMarginMetrics } from "./margin-alert-engine.js";
 
 export type MarginMetrics = {
   current_margin_pct: number;
@@ -14,6 +11,7 @@ export type MarginMetrics = {
   top_driver: string;
 };
 
+const MARGIN_DROP_DEDUPE_KEY = "margin_drop:store";
 const MARGIN_DROP_WARNING_THRESHOLD = 0.1;
 const MARGIN_DROP_CRITICAL_THRESHOLD = 0.2;
 
@@ -44,17 +42,13 @@ export function buildMarginDropAlert(
   if (!severity) return null;
 
   const magnitude = formatMarginMagnitude(dropRatio, metrics);
-  const title =
-    severity === "critical"
-      ? `Margin down ${Math.round(dropRatio * 100)}%`
-      : `Margin down ${Math.round(dropRatio * 100)}%`;
 
   return {
     id: newAlertId(),
     store_id: storeId,
     severity,
     type: "margin_drop",
-    title,
+    title: `Margin down ${Math.round(dropRatio * 100)}%`,
     body: `${magnitude}. Top driver: ${metrics.top_driver}. Review your daily brief or ask Morgan why.`,
     magnitude,
     top_driver: metrics.top_driver,
@@ -72,9 +66,8 @@ export function buildMarginDropAlert(
   };
 }
 
-/** Demo metrics — replace with mart_orders_daily when pipeline lands. */
+/** Demo metrics for stub stores. */
 export function sampleMarginMetrics(storeId: string): MarginMetrics {
-  // Stable demo store sees a 14% margin drop (warning).
   if (storeId.endsWith("0002") || storeId === "dev-local-store") {
     return {
       current_margin_pct: 38.2,
@@ -90,17 +83,21 @@ export function sampleMarginMetrics(storeId: string): MarginMetrics {
   };
 }
 
-export function evaluateMarginDropAlert(
+export async function evaluateMarginDropAlert(
+  db: Database | null,
   storeId: string,
   metrics: MarginMetrics = sampleMarginMetrics(storeId),
   now: Date = new Date(),
-): AlertRecord | null {
+): Promise<AlertRecord | null> {
   const dropRatio = computeMarginDropRatio(metrics);
   const severity = marginDropSeverity(dropRatio);
-  const existing = listStoreAlerts(storeId).find((item) => item.type === "margin_drop");
+  const existing = await findAlertByDedupeKey(db, storeId, MARGIN_DROP_DEDUPE_KEY);
 
   if (!severity) {
-    return existing ?? null;
+    if (existing) {
+      await clearAlertByDedupeKey(db, storeId, MARGIN_DROP_DEDUPE_KEY);
+    }
+    return null;
   }
 
   const alert = buildMarginDropAlert(storeId, metrics, now)!;
@@ -110,8 +107,8 @@ export function evaluateMarginDropAlert(
     alert.created_at = existing.created_at;
   }
 
-  const saved = upsertStoreAlert(storeId, alert);
-  maybeSendAlertPush(storeId, saved, now);
+  const saved = await saveAlert(db, alert, MARGIN_DROP_DEDUPE_KEY);
+  await maybeSendAlertPush(db, storeId, saved, now);
   return saved;
 }
 

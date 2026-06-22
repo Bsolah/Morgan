@@ -4,7 +4,6 @@ import {
   martAdPerformanceDaily,
   merchantFinanceConfig,
   metaAdAccounts,
-  profitLeaks,
   type Database,
 } from "@morgan/db";
 import {
@@ -18,7 +17,6 @@ import {
   extractOrderDay,
   extractUtmFromOrderPayload,
   financeConfigFromMerchantRow,
-  hasConsecutiveLowPoasDays,
   MER_TOOLTIP,
   parseOrderRevenue,
   parseShopifyOrderEconomicsInput,
@@ -35,10 +33,12 @@ import { getQuickBooksCogsRateForStore } from "./quickbooks-account-mapping-serv
 import { getXeroCogsRateForStore } from "./xero-account-mapping-service.js";
 import { loadUnitCostBySku } from "./product-catalog-reader.js";
 import { parseOrderPayload, readOrderFactsForStore } from "./order-fact-reader.js";
-
-const AD_WASTE_MIN_SPEND_USD = 100;
-const AD_WASTE_CONSECUTIVE_DAYS = 7;
-const AD_WASTE_POAS_THRESHOLD = 1;
+import {
+  detectAdWasteLeaks,
+  detectDeadStockLeaks,
+  detectDiscountBleedLeaks,
+  detectReturnDrainLeaks,
+} from "./profit-leak-scan-service.js";
 
 function normalizeCampaignKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -360,86 +360,10 @@ export async function recalculatePoasForStore(
   }
 
   await detectAdWasteLeaks(db, storeId, dailyMetrics);
+  await detectDiscountBleedLeaks(db, storeId, orderRows, referenceDay);
+  await detectReturnDrainLeaks(db, storeId, orderRows, referenceDay);
+  await detectDeadStockLeaks(db, storeId, orderRows, referenceDay);
   await writer.close?.();
-}
-
-async function detectAdWasteLeaks(
-  db: Database,
-  storeId: string,
-  dailyMetrics: Array<CampaignDailyMetrics & { channel: string }>,
-) {
-  const campaignKeys = [
-    ...new Set(dailyMetrics.map((row) => campaignScopeKey(row.channel, row.campaign_id))),
-  ];
-
-  for (const campaignKey of campaignKeys) {
-    const [channel, ...campaignIdParts] = campaignKey.split("|");
-    const campaignId = campaignIdParts.join("|");
-    const campaignRows = dailyMetrics.filter(
-      (row) => row.channel === channel && row.campaign_id === campaignId,
-    );
-    const window = aggregateCampaignWindow(campaignRows, AD_WASTE_CONSECUTIVE_DAYS, campaignRows.at(-1)?.day ?? "");
-    const metrics = window.get(campaignId);
-    const isWaste =
-      metrics != null &&
-      metrics.ad_spend >= AD_WASTE_MIN_SPEND_USD &&
-      hasConsecutiveLowPoasDays(
-        campaignRows,
-        campaignId,
-        AD_WASTE_CONSECUTIVE_DAYS,
-        AD_WASTE_POAS_THRESHOLD,
-      );
-
-    const dedupeKey = `ad_waste:${channel}:${campaignId}`;
-    const campaignName = campaignRows[0]?.campaign_name ?? campaignId;
-
-    if (isWaste && metrics) {
-      await db
-        .insert(profitLeaks)
-        .values({
-          storeId,
-          leakType: "ad_waste",
-          externalKey: campaignId,
-          status: "active",
-          severity: "warning",
-          amountAtRiskUsd: formatMoney(metrics.ad_spend),
-          evidence: [
-            {
-              channel,
-              campaign: campaignName,
-              campaign_id: campaignId,
-              poas: metrics.poas,
-              spend_7d: metrics.ad_spend,
-            },
-          ],
-          dedupeKey,
-        })
-        .onConflictDoUpdate({
-          target: [profitLeaks.storeId, profitLeaks.dedupeKey],
-          set: {
-            status: "active",
-            amountAtRiskUsd: formatMoney(metrics.ad_spend),
-            evidence: [
-              {
-                channel,
-                campaign: campaignName,
-                campaign_id: campaignId,
-                poas: metrics.poas,
-                spend_7d: metrics.ad_spend,
-              },
-            ],
-            resolvedAt: null,
-            updatedAt: new Date(),
-          },
-        });
-      continue;
-    }
-
-    await db
-      .update(profitLeaks)
-      .set({ status: "resolved", resolvedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(profitLeaks.storeId, storeId), eq(profitLeaks.dedupeKey, dedupeKey)));
-  }
 }
 
 export async function getMarketingOverview(

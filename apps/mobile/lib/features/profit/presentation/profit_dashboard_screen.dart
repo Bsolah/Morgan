@@ -85,6 +85,15 @@ class ProfitDashboardScreen extends ConsumerWidget {
                               ],
                             ],
                           ),
+                          const SizedBox(height: MorganSpace.sm),
+                          MorganMetricCard(
+                            label: 'Active profit leaks',
+                            value: overview.activeLeakCount.toString(),
+                            subtitle: overview.amountAtRiskUsd > 0
+                                ? '\$${overview.amountAtRiskUsd} at risk'
+                                : 'Scanned daily after mart refresh',
+                            onTap: () {},
+                          ),
                           const SizedBox(height: MorganSpace.lg),
                           MorganSurface(
                             child: Column(

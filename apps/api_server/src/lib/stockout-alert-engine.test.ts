@@ -75,16 +75,16 @@ describe("stockout alert engine", () => {
     expect(alert.severity).toBe("critical");
   });
 
-  it("sends push for warning+ when enabled", () => {
-    const alerts = evaluateStockoutAlerts("store-1", [qualifyingSku()]);
+  it("sends push for warning+ when enabled", async () => {
+    const alerts = await evaluateStockoutAlerts(null, "store-1", [qualifyingSku()]);
     expect(alerts).toHaveLength(1);
     expect(wasPushSent(alerts[0]!.id)).toBe(true);
     expect(getPushLog()).toHaveLength(1);
   });
 
-  it("does not duplicate alerts for the same SKU", () => {
-    evaluateStockoutAlerts("store-1", [qualifyingSku()]);
-    evaluateStockoutAlerts("store-1", [qualifyingSku()]);
+  it("does not duplicate alerts for the same SKU", async () => {
+    await evaluateStockoutAlerts(null, "store-1", [qualifyingSku()]);
+    await evaluateStockoutAlerts(null, "store-1", [qualifyingSku()]);
     expect(getPushLog()).toHaveLength(1);
   });
 

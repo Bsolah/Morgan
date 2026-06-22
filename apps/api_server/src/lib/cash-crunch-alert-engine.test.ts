@@ -70,20 +70,21 @@ describe("cash crunch alert engine", () => {
     });
   });
 
-  it("sends push for warning+ when enabled", () => {
-    const alert = evaluateCashCrunchAlert("store-1", criticalMetrics());
+  it("sends push for warning+ when enabled", async () => {
+    const alert = await evaluateCashCrunchAlert(null, "store-1", criticalMetrics());
     expect(wasPushSent(alert!.id)).toBe(true);
     expect(getPushLog()).toHaveLength(1);
   });
 
-  it("allows critical cash crunch push during quiet hours", () => {
+  it("allows critical cash crunch push during quiet hours", async () => {
     setNotificationPrefs("store-1", {
       quiet_hours_enabled: true,
       quiet_hours_start: 22,
       quiet_hours_end: 5,
     });
 
-    const alert = evaluateCashCrunchAlert(
+    const alert = await evaluateCashCrunchAlert(
+      null,
       "store-1",
       criticalMetrics(),
       new Date("2026-06-17T23:00:00.000Z"),
@@ -92,9 +93,9 @@ describe("cash crunch alert engine", () => {
     expect(wasPushSent(alert!.id)).toBe(true);
   });
 
-  it("does not duplicate cash crunch alerts on re-evaluation", () => {
-    evaluateCashCrunchAlert("store-1", criticalMetrics());
-    evaluateCashCrunchAlert("store-1", criticalMetrics());
+  it("does not duplicate cash crunch alerts on re-evaluation", async () => {
+    await evaluateCashCrunchAlert(null, "store-1", criticalMetrics());
+    await evaluateCashCrunchAlert(null, "store-1", criticalMetrics());
     expect(getPushLog()).toHaveLength(1);
   });
 
