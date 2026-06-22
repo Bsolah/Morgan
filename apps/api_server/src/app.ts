@@ -6,6 +6,7 @@ import { authRoutes } from "./routes/auth.js";
 import { financeRoutes } from "./routes/finance.js";
 import { cashRoutes } from "./routes/cash.js";
 import { syncRoutes } from "./routes/sync.js";
+import { storeRoutes } from "./routes/stores.js";
 import { shopifyWebhookRoutes } from "./routes/webhooks/shopify.js";
 import { shopifyComplianceWebhookRoutes } from "./routes/webhooks/shopify-compliance.js";
 import { plaidWebhookRoutes } from "./routes/webhooks/plaid.js";
@@ -56,6 +57,7 @@ export async function buildApp() {
   await app.register(financeRoutes);
   await app.register(cashRoutes);
   await app.register(syncRoutes);
+  await app.register(storeRoutes);
   await app.register(shopifyWebhookRoutes);
   await app.register(shopifyComplianceWebhookRoutes);
   await app.register(plaidWebhookRoutes);

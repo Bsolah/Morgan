@@ -21,7 +21,7 @@ class MorganTheme {
         primary: p.accent,
         onPrimary: p.accentOn,
         secondary: p.gold,
-        onSecondary: p.textPrimary,
+        onSecondary: p.isDark ? const Color(0xFFE8EEF4) : const Color(0xFFFFFBF4),
         surface: p.surface,
         onSurface: p.textPrimary,
         error: p.loss,

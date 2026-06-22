@@ -27,7 +27,7 @@ class MorganActionCard extends StatelessWidget {
 
     return MorganSurface(
       color: p.goldMuted,
-      borderColor: p.isDark ? p.gold.withValues(alpha: 0.25) : const Color(0xFFE8DFC8),
+      borderColor: p.isDark ? p.gold.withValues(alpha: 0.25) : p.gold.withValues(alpha: 0.15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -64,8 +64,11 @@ class _MorganLogoPainter extends CustomPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: isDark
-            ? [const Color(0xFF1E1E28), const Color(0xFF14141A)]
-            : [accent, Color.lerp(accent, const Color(0xFF1A1A18), 0.35)!],
+            ? [const Color(0xFF3D3018), accent, const Color(0xFFE8C96A)]
+            : [
+                Color.lerp(accent, const Color(0xFF1A1408), 0.25)!,
+                Color.lerp(accent, const Color(0xFFD4AF37), 0.45)!,
+              ],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawRRect(bg, bgPaint);
 

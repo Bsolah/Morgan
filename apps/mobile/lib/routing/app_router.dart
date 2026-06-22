@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_controller.dart';
 import '../core/auth/biometric_unlock_screen.dart';
+import '../features/alerts/presentation/alert_detail_screen.dart';
 import '../features/finance/presentation/cogs_method_screen.dart';
 import '../features/integrations/presentation/integrations_hub_screen.dart';
 import '../features/integrations/presentation/quickbooks_account_mapping_screen.dart';
@@ -86,10 +87,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => OnboardingScreen(
-          returnTo: state.uri.queryParameters['returnTo'],
-          isReauth: state.uri.queryParameters['reauth'] == '1',
-        ),
+        builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: '/unlock',
@@ -105,8 +103,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/recommendations/:id',
+        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => RecommendationDetailScreen(
           recommendationId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/alerts/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => AlertDetailScreen(
+          alertId: state.pathParameters['id']!,
         ),
       ),
       GoRoute(

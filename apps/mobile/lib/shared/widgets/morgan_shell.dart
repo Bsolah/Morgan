@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/alerts/alerts_providers.dart';
 import '../../core/theme/morgan_colors.dart';
 import '../../core/theme/morgan_tokens.dart';
 
-class MorganShell extends StatelessWidget {
+class MorganShell extends ConsumerWidget {
   const MorganShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
@@ -22,9 +24,11 @@ class MorganShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final unreadCount = ref.watch(unreadAlertsCountProvider).valueOrNull ?? 0;
+    const alertsTabIndex = 3;
 
     return Scaffold(
       backgroundColor: p.background,
@@ -56,10 +60,40 @@ class MorganShell extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            selected ? item.selected : item.icon,
-                            size: 22,
-                            color: selected ? p.accent : p.textMuted,
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                selected ? item.selected : item.icon,
+                                size: 22,
+                                color: selected ? p.accent : p.textMuted,
+                              ),
+                              if (i == alertsTabIndex && unreadCount > 0)
+                                Positioned(
+                                  right: -6,
+                                  top: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 14),
+                                    decoration: BoxDecoration(
+                                      color: p.loss,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      unreadCount > 9 ? '9+' : '$unreadCount',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: MorganSpace.xxs),
                           Text(

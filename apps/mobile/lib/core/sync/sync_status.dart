@@ -1,41 +1,55 @@
+enum SyncTaskStatus { pending, syncing, complete }
+
+class SyncTaskProgress {
+  const SyncTaskProgress({
+    required this.id,
+    required this.label,
+    required this.percent,
+    required this.status,
+  });
+
+  final String id;
+  final String label;
+  final int percent;
+  final SyncTaskStatus status;
+
+  factory SyncTaskProgress.fromJson(Map<String, dynamic> json) {
+    return SyncTaskProgress(
+      id: json['id'] as String,
+      label: json['label'] as String,
+      percent: json['percent'] as int,
+      status: SyncTaskStatus.values.byName(json['status'] as String),
+    );
+  }
+}
+
 class SyncStatus {
   const SyncStatus({
     required this.storeId,
-    required this.status,
-    required this.label,
-    required this.processedCount,
-    this.totalCount,
-    this.progressPercent,
-    required this.partialBriefAvailable,
-    required this.partialBriefThreshold,
-    this.error,
+    required this.overallPercent,
+    required this.etaMinutes,
+    required this.tasks,
+    required this.storeStatus,
   });
 
   final String storeId;
-  final String status;
-  final String label;
-  final int processedCount;
-  final int? totalCount;
-  final double? progressPercent;
-  final bool partialBriefAvailable;
-  final double partialBriefThreshold;
-  final String? error;
+  final int overallPercent;
+  final int? etaMinutes;
+  final List<SyncTaskProgress> tasks;
+  final String storeStatus;
 
-  bool get isComplete => status == 'completed';
-  bool get isActive => status == 'pending' || status == 'bulk_running' || status == 'processing';
-  bool get showPartialBrief => partialBriefAvailable;
+  bool get isBriefReady => overallPercent >= 50;
 
   factory SyncStatus.fromJson(Map<String, dynamic> json) {
+    final tasksJson = json['tasks'] as List<dynamic>;
     return SyncStatus(
       storeId: json['store_id'] as String,
-      status: json['status'] as String,
-      label: json['label'] as String,
-      processedCount: (json['processed_count'] as num?)?.toInt() ?? 0,
-      totalCount: (json['total_count'] as num?)?.toInt(),
-      progressPercent: (json['progress_percent'] as num?)?.toDouble(),
-      partialBriefAvailable: json['partial_brief_available'] as bool? ?? false,
-      partialBriefThreshold: (json['partial_brief_threshold'] as num?)?.toDouble() ?? 0.5,
-      error: json['error'] as String?,
+      overallPercent: json['overall_percent'] as int,
+      etaMinutes: json['eta_minutes'] as int?,
+      tasks: tasksJson
+          .map((task) => SyncTaskProgress.fromJson(task as Map<String, dynamic>))
+          .toList(),
+      storeStatus: json['store_status'] as String,
     );
   }
 }

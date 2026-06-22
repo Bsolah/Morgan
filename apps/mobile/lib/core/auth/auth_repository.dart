@@ -42,6 +42,18 @@ class AuthRepository {
     );
   }
 
+  /// Localhost-only dev session — no real Shopify tokens.
+  Future<AuthSession> seedDevSession() async {
+    const session = AuthSession(
+      accessToken: 'dev-local-access-token',
+      refreshToken: 'dev-local-refresh-token',
+      storeId: AppConfig.devSessionStoreId,
+      shopDomain: AppConfig.devSessionShopDomain,
+    );
+    await _persist(session);
+    return session;
+  }
+
   Future<AuthSession> exchangeConnectToken(String connectToken) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/v1/auth/shopify/token-exchange',

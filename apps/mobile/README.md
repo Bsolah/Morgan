@@ -111,6 +111,24 @@ Override at run time:
 flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8080
 ```
 
+### Skip setup on localhost
+
+`pnpm mobile:ios` and `pnpm mobile:android` pass `--dart-define=SKIP_SETUP=true` by default. The app seeds a dev store session and opens straight to the home screen — no Shopify OAuth required for UI work.
+
+To test the full onboarding flow locally:
+
+```bash
+SKIP_SETUP=false pnpm mobile:ios
+```
+
+Or from `apps/mobile`:
+
+```bash
+flutter run --dart-define=SKIP_SETUP=false
+```
+
+While setup is skipped, Settings → Developer shows **Local dev mode — Shopify setup skipped**.
+
 ## Hot reload
 
 While `flutter run` is active:
@@ -124,6 +142,26 @@ While `flutter run` is active:
 ### `VM initialization failed: macOS 12.0 is lower than 14.0`
 
 You are on Flutter stable (too new). Pin **3.38.10** (see install above).
+
+### No iOS Simulator / `No supported devices found with name or id matching 'ios'`
+
+Flutter 3.38 does not accept `-d ios` when multiple devices exist. The repo script boots a simulator and targets it by UDID automatically:
+
+```bash
+pnpm mobile:ios
+```
+
+Or pick a device explicitly:
+
+```bash
+bash scripts/run-mobile-ios.sh "iPhone 14"
+```
+
+(`pnpm mobile:ios -- "iPhone 14"` also works — the script skips pnpm's `--` separator.)
+
+### `flutter_web_auth_2` Swift errors on Xcode 14
+
+`flutter_web_auth_2` 4.x requires Xcode 15+ (iOS 17 SDK). This project pins **3.1.x** for Xcode 14.2 on macOS 12. If you upgrade Xcode, you can bump the dependency in `pubspec.yaml`.
 
 ### CocoaPods issues (iOS)
 

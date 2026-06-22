@@ -198,12 +198,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text('DEVELOPER', style: theme.textTheme.labelMedium),
                   const SizedBox(height: MorganSpace.sm),
                   MorganSurface(
-                    child: Text(
-                      AppConfig.apiBaseUrl,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
-                        color: p.textMuted,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppConfig.apiBaseUrl,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontFamily: 'monospace',
+                            color: p.textMuted,
+                          ),
+                        ),
+                        if (AppConfig.canSkipSetup) ...[
+                          const SizedBox(height: MorganSpace.sm),
+                          Text(
+                            'Local dev mode — Shopify setup skipped',
+                            style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],

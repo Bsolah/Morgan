@@ -1,125 +1,200 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/recommendations/recommendations_providers.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_fade_in.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
-import '../../../shared/widgets/morgan_surface.dart';
+import 'widgets/recommendation_card.dart';
 
-class RecommendationsScreen extends StatelessWidget {
+class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
+  static const _emptyMessage = "You're all caught up — check back after tomorrow's brief";
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.morgan;
+    final theme = Theme.of(context);
+    final feed = ref.watch(recommendationsProvider);
 
     return Scaffold(
       backgroundColor: p.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: MorganSpace.huge),
-          children: [
-            const MorganScreenHeader(
-              title: 'Actions',
-              subtitle: 'Ranked by profit impact',
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-              child: Column(
-                children: [
-                  MorganFadeIn(
-                    child: _ActionItem(
-                      rank: 1,
-                      title: 'Pause Campaign X',
-                      impact: 'Save ~\$420/wk',
-                      effort: 'Low effort',
-                      confidence: 'High confidence',
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganFadeIn(
-                    delay: const Duration(milliseconds: 60),
-                    child: _ActionItem(
-                      rank: 2,
-                      title: 'Reorder Blue Tee (M)',
-                      impact: 'Avoid \$800 stockout',
-                      effort: 'Medium effort',
-                      confidence: 'High confidence',
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganFadeIn(
-                    delay: const Duration(milliseconds: 120),
-                    child: _ActionItem(
-                      rank: 3,
-                      title: 'Review discount codes',
-                      impact: 'Recover ~\$1.1K/mo margin',
-                      effort: 'Low effort',
-                      confidence: 'Medium confidence',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionItem extends StatelessWidget {
-  const _ActionItem({
-    required this.rank,
-    required this.title,
-    required this.impact,
-    required this.effort,
-    required this.confidence,
-  });
-
-  final int rank;
-  final String title;
-  final String impact;
-  final String effort;
-  final String confidence;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    return MorganSurface(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: p.accentMuted,
-              borderRadius: BorderRadius.circular(MorganRadius.xs),
-            ),
-            child: Text(
-              '$rank',
-              style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-            ),
-          ),
-          const SizedBox(width: MorganSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: theme.textTheme.titleMedium),
-                const SizedBox(height: MorganSpace.xs),
-                Text(impact, style: theme.textTheme.titleSmall?.copyWith(color: p.profit)),
-                const SizedBox(height: MorganSpace.xxs),
-                Text('$effort · $confidence', style: theme.textTheme.bodySmall),
+        child: RefreshIndicator(
+          color: p.accent,
+          onRefresh: () async {
+            ref.invalidate(recommendationsProvider);
+            await ref.read(recommendationsProvider.future);
+          },
+          child: feed.when(
+            loading: () => const CustomScrollView(
+              physics: AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ],
             ),
+            error: (error, _) => CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                const SliverToBoxAdapter(
+                  child: MorganScreenHeader(
+                    title: 'Actions',
+                    subtitle: 'Ranked by profit impact',
+                  ),
+                ),
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                    child: Text('Could not load recommendations. Pull to retry.'),
+                  ),
+                ),
+              ],
+            ),
+            data: (data) {
+              if (data.isEmpty) {
+                return CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: MorganScreenHeader(
+                        title: 'Actions',
+                        subtitle: 'Ranked by profit impact',
+                      ),
+                    ),
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_outline_rounded, size: 48, color: p.accent),
+                            const SizedBox(height: MorganSpace.md),
+                            Text(
+                              _emptyMessage,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  const SliverToBoxAdapter(
+                    child: MorganScreenHeader(
+                      title: 'Actions',
+                      subtitle: 'Ranked by profit impact',
+                    ),
+                  ),
+                  if (data.inProgress.isNotEmpty) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          MorganSpace.screenH,
+                          0,
+                          MorganSpace.screenH,
+                          MorganSpace.sm,
+                        ),
+                        child: Text('IN PROGRESS', style: theme.textTheme.labelMedium),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        MorganSpace.screenH,
+                        0,
+                        MorganSpace.screenH,
+                        MorganSpace.md,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final item = data.inProgress[index];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index < data.inProgress.length - 1 ? MorganSpace.sm : 0,
+                              ),
+                              child: RecommendationCard(
+                                recommendation: item,
+                                inProgress: true,
+                                onTap: () => context.push('/recommendations/${item.id}'),
+                              ),
+                            );
+                          },
+                          childCount: data.inProgress.length,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (data.open.isNotEmpty) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          MorganSpace.screenH,
+                          data.inProgress.isNotEmpty ? MorganSpace.sm : 0,
+                          MorganSpace.screenH,
+                          MorganSpace.sm,
+                        ),
+                        child: Text('RECOMMENDED', style: theme.textTheme.labelMedium),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        MorganSpace.screenH,
+                        0,
+                        MorganSpace.screenH,
+                        MorganSpace.huge,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index == data.open.length) {
+                              if (data.archivedCount <= 0) return null;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: MorganSpace.md),
+                                child: Text(
+                                  '${data.archivedCount} more archived',
+                                  style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
+                                  textAlign: TextAlign.center,
+                                ),
+                              );
+                            }
+
+                            final item = data.open[index];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index < data.open.length - 1 ? MorganSpace.sm : 0,
+                              ),
+                              child: MorganFadeIn(
+                                delay: Duration(milliseconds: 60 * index),
+                                child: RecommendationCard(
+                                  recommendation: item,
+                                  onTap: () => context.push('/recommendations/${item.id}'),
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: data.open.length + (data.archivedCount > 0 ? 1 : 0),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
-          Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
-        ],
+        ),
       ),
     );
   }
