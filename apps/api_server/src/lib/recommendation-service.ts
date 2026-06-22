@@ -1,43 +1,76 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { profitLeaks, type Database } from "@morgan/db";
-import { leakBody, leakTitle, type ChatRecommendationContext } from "@morgan/integrations";
+import {
+  categoryLabelForLeakType,
+  computeImpactRange,
+  computeRecommendationRankScore,
+  confidenceForSeverity,
+  effortForLeakType,
+  leakBody,
+  leakTitle,
+  OPEN_RECOMMENDATIONS_LIMIT,
+  recommendationExpiresAt,
+  type ChatRecommendationContext,
+} from "@morgan/integrations";
 
-export type RecommendationStatus = "open" | "accepted" | "dismissed";
+export type RecommendationStatus = "open" | "accepted" | "dismissed" | "archived";
 
 export type RecommendationView = {
   id: string;
   title: string;
   body: string;
   category: string;
+  category_label: string;
   status: RecommendationStatus;
   impact_low_usd: number | null;
   impact_high_usd: number | null;
-  confidence: string;
-  effort: string;
+  confidence: "high" | "medium" | "low";
+  effort: "low" | "medium" | "high";
+  rank_score: number;
+  expires_at: string;
   created_at: string;
   updated_at: string;
+};
+
+export type RecommendationsListView = {
+  items: RecommendationView[];
+  archived_count: number;
 };
 
 function mapStatus(status: string): RecommendationStatus {
   if (status === "accepted") return "accepted";
   if (status === "dismissed") return "dismissed";
+  if (status === "archived") return "archived";
   return "open";
 }
 
-function mapRow(row: typeof profitLeaks.$inferSelect): RecommendationView {
+function mapRow(row: typeof profitLeaks.$inferSelect, referenceDay: string): RecommendationView {
   const amount = Number(row.amountAtRiskUsd ?? 0);
-  const finiteAmount = Number.isFinite(amount) ? amount : null;
+  const finiteAmount = Number.isFinite(amount) && amount > 0 ? amount : null;
+  const impact = computeImpactRange(finiteAmount);
+  const effort = effortForLeakType(row.leakType);
+  const confidence = confidenceForSeverity(row.severity);
+  const severity =
+    row.severity === "critical" ? "critical" : row.severity === "info" ? "info" : "warning";
 
   return {
     id: row.id,
     title: leakTitle(row.leakType, row.evidence ?? null),
     body: leakBody(row.leakType, row.evidence ?? null),
     category: row.leakType,
+    category_label: categoryLabelForLeakType(row.leakType),
     status: mapStatus(row.status),
-    impact_low_usd: finiteAmount,
-    impact_high_usd: finiteAmount,
-    confidence: row.severity === "critical" ? "high" : "medium",
-    effort: row.leakType === "ad_waste" ? "low" : "medium",
+    impact_low_usd: impact.impact_low_usd,
+    impact_high_usd: impact.impact_high_usd,
+    confidence,
+    effort,
+    rank_score: computeRecommendationRankScore({
+      impactUsd: finiteAmount ?? 0,
+      confidence,
+      effort,
+      severity,
+    }),
+    expires_at: recommendationExpiresAt(referenceDay),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   };
@@ -46,15 +79,32 @@ function mapRow(row: typeof profitLeaks.$inferSelect): RecommendationView {
 export async function listOpenRecommendations(
   db: Database,
   storeId: string,
-): Promise<RecommendationView[]> {
+): Promise<RecommendationsListView> {
+  const referenceDay = new Date().toISOString().slice(0, 10);
   const rows = await db
     .select()
     .from(profitLeaks)
     .where(and(eq(profitLeaks.storeId, storeId), eq(profitLeaks.status, "active")))
-    .orderBy(desc(profitLeaks.amountAtRiskUsd))
-    .limit(5);
+    .orderBy(desc(profitLeaks.amountAtRiskUsd));
 
-  return rows.map(mapRow);
+  const ranked = rows
+    .map((row) => mapRow(row, referenceDay))
+    .sort((left, right) => right.rank_score - left.rank_score);
+
+  const items = ranked.slice(0, OPEN_RECOMMENDATIONS_LIMIT);
+  const overflowIds = ranked.slice(OPEN_RECOMMENDATIONS_LIMIT).map((row) => row.id);
+
+  if (overflowIds.length > 0) {
+    await db
+      .update(profitLeaks)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(and(eq(profitLeaks.storeId, storeId), inArray(profitLeaks.id, overflowIds)));
+  }
+
+  return {
+    items,
+    archived_count: overflowIds.length,
+  };
 }
 
 export async function getRecommendation(
@@ -62,27 +112,22 @@ export async function getRecommendation(
   storeId: string,
   recommendationId: string,
 ): Promise<RecommendationView | null> {
+  const referenceDay = new Date().toISOString().slice(0, 10);
   const [row] = await db
     .select()
     .from(profitLeaks)
     .where(and(eq(profitLeaks.id, recommendationId), eq(profitLeaks.storeId, storeId)))
     .limit(1);
 
-  return row ? mapRow(row) : null;
+  return row ? mapRow(row, referenceDay) : null;
 }
 
 export async function getTopOpenRecommendation(
   db: Database,
   storeId: string,
 ): Promise<RecommendationView | null> {
-  const [row] = await db
-    .select()
-    .from(profitLeaks)
-    .where(and(eq(profitLeaks.storeId, storeId), eq(profitLeaks.status, "active")))
-    .orderBy(desc(profitLeaks.amountAtRiskUsd))
-    .limit(1);
-
-  return row ? mapRow(row) : null;
+  const list = await listOpenRecommendations(db, storeId);
+  return list.items[0] ?? null;
 }
 
 export async function acceptRecommendation(
@@ -106,7 +151,8 @@ export async function acceptRecommendation(
     )
     .returning();
 
-  return row ? mapRow(row) : null;
+  const referenceDay = new Date().toISOString().slice(0, 10);
+  return row ? mapRow(row, referenceDay) : null;
 }
 
 export async function dismissRecommendation(
@@ -130,7 +176,8 @@ export async function dismissRecommendation(
     )
     .returning();
 
-  return row ? mapRow(row) : null;
+  const referenceDay = new Date().toISOString().slice(0, 10);
+  return row ? mapRow(row, referenceDay) : null;
 }
 
 export function recommendationToChatContext(recommendation: RecommendationView): ChatRecommendationContext {

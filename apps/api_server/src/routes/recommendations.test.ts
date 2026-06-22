@@ -82,10 +82,22 @@ describe("recommendations routes", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().items.length).toBeGreaterThanOrEqual(1);
+    expect(res.json()).toMatchObject({
+      archived_count: expect.any(Number),
+      items: expect.any(Array),
+    });
     expect(res.json().items[0]).toMatchObject({
       id: expect.any(String),
       title: expect.any(String),
       status: "open",
+      rank_score: expect.any(Number),
+      effort: expect.stringMatching(/^(low|medium|high)$/),
+      confidence: expect.stringMatching(/^(high|medium|low)$/),
+      category: expect.any(String),
+      category_label: expect.any(String),
+      expires_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      impact_low_usd: expect.anything(),
+      impact_high_usd: expect.anything(),
     });
   });
 

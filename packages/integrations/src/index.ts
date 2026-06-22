@@ -27,6 +27,7 @@ export * from "./marketing/attribution.js";
 export * from "./marketing/poas.js";
 export * from "./marketing/mer.js";
 export * from "./marketing/budget-allocation.js";
+export * from "./recommendations/recommendation-ranking.js";
 export * from "./plaid/client.js";
 export * from "./plaid/transactions.js";
 export * from "./plaid/categorization.js";

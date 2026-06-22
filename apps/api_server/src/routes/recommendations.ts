@@ -33,8 +33,8 @@ export async function recommendationsRoutes(app: FastifyInstance): Promise<void>
       return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
     }
 
-    const items = await listOpenRecommendations(db, storeId);
-    return { items };
+    const result = await listOpenRecommendations(db, storeId);
+    return result;
   });
 
   app.get(
