@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/morgan_colors.dart';
 import '../../core/theme/morgan_tokens.dart';
 import '../../core/theme/morgan_typography.dart';
+import 'morgan_info_tooltip.dart';
 import 'morgan_surface.dart';
 
 enum MetricTrend { up, down, neutral }
@@ -17,6 +18,8 @@ class MorganMetricCard extends StatelessWidget {
     this.subtitle,
     this.infoTooltip,
     this.onTap,
+    this.valueColor,
+    this.compact = false,
   });
 
   final String label;
@@ -26,6 +29,8 @@ class MorganMetricCard extends StatelessWidget {
   final String? subtitle;
   final String? infoTooltip;
   final VoidCallback? onTap;
+  final Color? valueColor;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +53,18 @@ class MorganMetricCard extends StatelessWidget {
       }
     }
 
+    final valueStyle = MorganTypography.metricValue(
+      p,
+      size: compact ? 22 : 28,
+    ).copyWith(color: valueColor);
+
     final card = MorganSurface(
+      padding: compact
+          ? const EdgeInsets.symmetric(
+              horizontal: MorganSpace.md,
+              vertical: MorganSpace.sm,
+            )
+          : const EdgeInsets.all(MorganSpace.card),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -56,15 +72,14 @@ class MorganMetricCard extends StatelessWidget {
             children: [
               Expanded(child: Text(label.toUpperCase(), style: theme.textTheme.labelMedium)),
               if (infoTooltip != null)
-                Tooltip(
+                MorganInfoTooltip(
                   message: infoTooltip!,
-                  triggerMode: TooltipTriggerMode.tap,
-                  child: Icon(Icons.info_outline, size: 16, color: p.textMuted),
+                  semanticsLabel: 'More information about $label',
                 ),
             ],
           ),
-          const SizedBox(height: MorganSpace.sm),
-          Text(value, style: MorganTypography.metricValue(p)),
+          SizedBox(height: compact ? MorganSpace.xs : MorganSpace.sm),
+          Text(value, style: valueStyle),
           if (delta != null && deltaColor != null) ...[
             const SizedBox(height: MorganSpace.xs),
             Container(
@@ -85,6 +100,16 @@ class MorganMetricCard extends StatelessWidget {
     );
 
     if (onTap == null) return card;
-    return GestureDetector(onTap: onTap, child: card);
+    return Semantics(
+      button: true,
+      label: _accessibilityLabel(),
+      child: GestureDetector(onTap: onTap, child: card),
+    );
   }
+
+  String _accessibilityLabel() {
+    final parts = <String>[label, value];
+    if (delta != null) parts.add(delta!);
+    if (subtitle != null) parts.add(subtitle!);
+    return parts.join('. ');
 }

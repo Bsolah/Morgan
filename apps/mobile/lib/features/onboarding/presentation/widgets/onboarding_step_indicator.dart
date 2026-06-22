@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/morgan_colors.dart';
 import '../../../../core/theme/morgan_tokens.dart';
 
+/// Four-step onboarding progress (Welcome · Connect · Confirmed · Sync).
 class OnboardingStepIndicator extends StatelessWidget {
   const OnboardingStepIndicator({
     super.key,
@@ -15,7 +16,10 @@ class OnboardingStepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    assert(labels.length <= 4, 'Onboarding supports at most 4 steps');
+
     final p = context.morgan;
+    final theme = Theme.of(context);
 
     return Row(
       children: List.generate(labels.length, (index) {
@@ -27,7 +31,6 @@ class OnboardingStepIndicator extends StatelessWidget {
             children: [
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       height: 3,
@@ -36,15 +39,21 @@ class OnboardingStepIndicator extends StatelessWidget {
                         borderRadius: BorderRadius.circular(MorganRadius.pill),
                       ),
                     ),
-                    if (active) ...[
-                      const SizedBox(height: MorganSpace.xxs),
-                      Text(
-                        labels[index],
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: p.accent),
+                    const SizedBox(height: MorganSpace.xs),
+                    Text(
+                      labels[index],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: active
+                            ? p.accent
+                            : complete
+                                ? p.textSecondary
+                                : p.textMuted,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

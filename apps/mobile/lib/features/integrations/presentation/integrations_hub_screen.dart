@@ -418,69 +418,50 @@ class _MetaIntegrationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
     final lastSuccessfulSync = status.lastSuccessfulSyncAt ?? status.lastSyncAt;
     final displayError = status.needsReauth
         ? status.errorMessage
         : (status.syncErrorMessage ??
             (status.status == IntegrationStatus.error ? status.errorMessage : null));
 
-    return MorganSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IntegrationStatusIcon(status: status.status),
-              const SizedBox(width: MorganSpace.sm),
-              Icon(Icons.campaign_outlined, color: p.accent, size: 20),
-              const SizedBox(width: MorganSpace.sm),
-              Expanded(child: Text('Meta Ads', style: theme.textTheme.titleMedium)),
-              IntegrationStatusChip(status: status.status),
-            ],
+    return UnifiedIntegrationCard(
+      name: 'Meta Ads',
+      icon: Icons.campaign_outlined,
+      status: status.status,
+      needsReauth: status.needsReauth,
+      dataCoveragePct: dataCoveragePct,
+      detailLines: [
+        if (status.adAccountName != null) 'Account: ${status.adAccountName}',
+      ],
+      syncMessage: status.status == IntegrationStatus.syncing
+          ? (status.insightsBackfillCompleted
+              ? 'Syncing latest campaign data…'
+              : 'Backfilling 90 days of campaign insights…')
+          : null,
+      errorMessage: displayError,
+      lastSyncAt: lastSuccessfulSync,
+      actions: [
+        if (status.needsAccountSelection)
+          MorganPrimaryButton(
+            label: 'Select ad account',
+            onPressed: connecting ? null : onSelectAccount,
+          )
+        else if (status.status == IntegrationStatus.disconnected)
+          MorganPrimaryButton(
+            label: connecting ? 'Connecting…' : 'Connect',
+            onPressed: connecting ? null : onConnect,
+          )
+        else if (status.status == IntegrationStatus.error || status.needsReauth)
+          MorganPrimaryButton(
+            label: connecting ? 'Reconnecting…' : 'Reconnect',
+            onPressed: connecting ? null : onReconnect,
+          )
+        else
+          TextButton(
+            onPressed: disconnecting ? null : onDisconnect,
+            child: Text(disconnecting ? 'Disconnecting…' : 'Disconnect'),
           ),
-          const SizedBox(height: MorganSpace.sm),
-          if (status.adAccountName != null)
-            Text('Account: ${status.adAccountName}', style: theme.textTheme.bodySmall),
-          if (status.status == IntegrationStatus.syncing)
-            Text(
-              status.insightsBackfillCompleted
-                  ? 'Syncing latest campaign data…'
-                  : 'Backfilling 90 days of campaign insights…',
-              style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
-            ),
-          IntegrationLastSyncLine(lastSyncAt: lastSuccessfulSync),
-          if (displayError != null) ...[
-            const SizedBox(height: MorganSpace.xs),
-            Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-          ],
-          const SizedBox(height: MorganSpace.md),
-          IntegrationDataCoverageBar(percent: dataCoveragePct, compact: true),
-          const SizedBox(height: MorganSpace.md),
-          if (status.needsAccountSelection)
-            MorganPrimaryButton(
-              label: 'Select ad account',
-              onPressed: connecting ? null : onSelectAccount,
-            )
-          else if (status.status == IntegrationStatus.disconnected)
-            MorganPrimaryButton(
-              label: connecting ? 'Connecting…' : 'Connect',
-              onPressed: connecting ? null : onConnect,
-            )
-          else if (status.status == IntegrationStatus.error || status.needsReauth)
-            MorganPrimaryButton(
-              label: connecting ? 'Reconnecting…' : 'Reconnect',
-              onPressed: connecting ? null : onReconnect,
-            )
-          else ...[
-            TextButton(
-              onPressed: disconnecting ? null : onDisconnect,
-              child: Text(disconnecting ? 'Disconnecting…' : 'Disconnect'),
-            ),
-          ],
-        ],
-      ),
+      ],
     );
   }
 }

@@ -177,80 +177,56 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
 
   @override
   Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
     final status = widget.status;
 
     final displayError = _actionError ??
         status.syncErrorMessage ??
         (status.status == IntegrationStatus.error ? status.errorMessage : null);
 
-    return MorganSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IntegrationStatusIcon(status: status.status),
-              const SizedBox(width: MorganSpace.sm),
-              Icon(Icons.ads_click_outlined, color: p.accent, size: 20),
-              const SizedBox(width: MorganSpace.sm),
-              Expanded(
-                child: Text('Google Ads', style: theme.textTheme.titleMedium),
-              ),
-              IntegrationStatusChip(status: status.status),
-            ],
+    final detailLines = [
+      'Include Search and Shopping campaign performance in budget recommendations.',
+      if (status.managerCustomerName != null) 'Manager: ${status.managerCustomerName}',
+      if (status.clientCustomerName != null) 'Client: ${status.clientCustomerName}',
+    ];
+
+    return UnifiedIntegrationCard(
+      name: 'Google Ads',
+      icon: Icons.ads_click_outlined,
+      status: status.status,
+      dataCoveragePct: widget.dataCoveragePct,
+      detailLines: detailLines,
+      syncMessage: status.isConnected && !status.insightsBackfillCompleted
+          ? 'Backfilling 90 days of campaign performance…'
+          : null,
+      errorMessage: displayError,
+      lastSyncAt: status.lastSyncAt,
+      actions: [
+        if (status.needsManagerSelection)
+          MorganPrimaryButton(
+            label: 'Select manager account',
+            onPressed: _connecting ? null : _showManagerPicker,
+          )
+        else if (status.needsClientSelection)
+          MorganPrimaryButton(
+            label: 'Select client account',
+            onPressed: _connecting ? null : _showClientPicker,
+          )
+        else if (status.status == IntegrationStatus.disconnected)
+          MorganPrimaryButton(
+            label: _connecting ? 'Connecting…' : 'Connect',
+            onPressed: _connecting ? null : _connectGoogleAds,
+          )
+        else if (status.status == IntegrationStatus.error)
+          MorganPrimaryButton(
+            label: _connecting ? 'Reconnecting…' : 'Reconnect',
+            onPressed: _connecting ? null : _connectGoogleAds,
+          )
+        else
+          TextButton(
+            onPressed: _disconnecting ? null : _disconnectGoogleAds,
+            child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
           ),
-          const SizedBox(height: MorganSpace.sm),
-          Text(
-            'Include Search and Shopping campaign performance in budget recommendations.',
-            style: theme.textTheme.bodySmall,
-          ),
-          if (status.managerCustomerName != null)
-            Text('Manager: ${status.managerCustomerName}', style: theme.textTheme.bodySmall),
-          if (status.clientCustomerName != null)
-            Text('Client: ${status.clientCustomerName}', style: theme.textTheme.bodySmall),
-          if (status.isConnected && !status.insightsBackfillCompleted)
-            Text(
-              'Backfilling 90 days of campaign performance…',
-              style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
-            ),
-          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
-          if (displayError != null) ...[
-            const SizedBox(height: MorganSpace.xs),
-            Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-          ],
-          const SizedBox(height: MorganSpace.md),
-          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
-          const SizedBox(height: MorganSpace.md),
-          if (status.needsManagerSelection)
-            MorganPrimaryButton(
-              label: 'Select manager account',
-              onPressed: _connecting ? null : _showManagerPicker,
-            )
-          else if (status.needsClientSelection)
-            MorganPrimaryButton(
-              label: 'Select client account',
-              onPressed: _connecting ? null : _showClientPicker,
-            )
-          else if (status.status == IntegrationStatus.disconnected)
-            MorganPrimaryButton(
-              label: _connecting ? 'Connecting…' : 'Connect',
-              onPressed: _connecting ? null : _connectGoogleAds,
-            )
-          else if (status.status == IntegrationStatus.error)
-            MorganPrimaryButton(
-              label: _connecting ? 'Reconnecting…' : 'Reconnect',
-              onPressed: _connecting ? null : _connectGoogleAds,
-            )
-          else ...[
-            TextButton(
-              onPressed: _disconnecting ? null : _disconnectGoogleAds,
-              child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
-            ),
-          ],
-        ],
-      ),
+      ],
     );
   }
 }

@@ -129,6 +129,13 @@ class CashRunway {
     return '${runwayDays!.toStringAsFixed(0)} days';
   }
 
+  String get statusLabel => switch (runwayStatus) {
+        'healthy' => 'Healthy',
+        'warning' => 'Watch',
+        'critical' => 'Critical',
+        _ => 'Unknown',
+      };
+
   factory CashRunway.fromJson(Map<String, dynamic> json) {
     return CashRunway(
       bankConnected: json['bank_connected'] as bool? ?? false,

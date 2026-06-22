@@ -108,6 +108,8 @@ describe("marketing routes", () => {
       ads_connected: expect.any(Boolean),
       channels: expect.any(Array),
       campaigns: expect.any(Array),
+      trend_days: 7,
+      trend: expect.any(Array),
     });
   });
 

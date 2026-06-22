@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../preferences/shared_preferences_provider.dart';
 import 'brief_repository.dart';
 
 class BriefLocalCache {
@@ -90,7 +91,6 @@ class BriefLocalCache {
   }
 }
 
-final briefLocalCacheProvider = FutureProvider<BriefLocalCache>((ref) async {
-  final prefs = await SharedPreferences.getInstance();
-  return BriefLocalCache(prefs);
+final briefLocalCacheProvider = Provider<BriefLocalCache>((ref) {
+  return BriefLocalCache(ref.watch(sharedPreferencesProvider));
 });

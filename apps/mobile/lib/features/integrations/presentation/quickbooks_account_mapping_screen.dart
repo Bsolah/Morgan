@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/integrations/integrations_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_detail_app_bar.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
+import '../../../shared/widgets/morgan_section_header.dart';
+import 'account_mapping_screen_shared.dart';
 
 class QuickBooksAccountMappingScreen extends ConsumerStatefulWidget {
   const QuickBooksAccountMappingScreen({super.key});
@@ -17,6 +20,7 @@ class QuickBooksAccountMappingScreen extends ConsumerStatefulWidget {
 class _QuickBooksAccountMappingScreenState extends ConsumerState<QuickBooksAccountMappingScreen> {
   bool _loading = true;
   bool _saving = false;
+  bool _showValidation = false;
   String? _error;
   String? _message;
   List<QuickBooksAccountMapping> _mappings = [];
@@ -50,7 +54,14 @@ class _QuickBooksAccountMappingScreenState extends ConsumerState<QuickBooksAccou
     }
   }
 
+  bool get _hasValidationErrors {
+    return _draftCategories.values.any((category) => category == 'unmapped');
+  }
+
   Future<void> _saveMappings() async {
+    setState(() => _showValidation = true);
+    if (_hasValidationErrors) return;
+
     setState(() {
       _saving = true;
       _error = null;
@@ -72,6 +83,7 @@ class _QuickBooksAccountMappingScreenState extends ConsumerState<QuickBooksAccou
       setState(() {
         _mappings = mappings;
         _message = 'Account mappings saved';
+        _showValidation = false;
       });
     } catch (_) {
       setState(() => _error = 'Could not save account mappings.');
@@ -87,21 +99,28 @@ class _QuickBooksAccountMappingScreenState extends ConsumerState<QuickBooksAccou
 
     return Scaffold(
       backgroundColor: p.background,
-      appBar: AppBar(
-        title: const Text('QuickBooks mapping'),
-      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-              child: Text(
-                'Map QBO accounts to Morgan categories for COGS, shipping, marketing, and opex.',
-                style: theme.textTheme.bodyMedium,
+            MorganDetailAppBar(
+              title: 'QuickBooks mapping',
+              fallbackRoute: '/settings/integrations',
+              actions: [
+                TextButton(
+                  onPressed: _saving || _mappings.isEmpty ? null : _saveMappings,
+                  child: Text(_saving ? 'Saving…' : 'Save'),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+              child: MorganScreenHeader(
+                title: 'Account mapping',
+                subtitle:
+                    'Map QuickBooks accounts to Morgan categories so COGS, shipping, marketing, and opex roll up correctly in profit.',
               ),
             ),
-            const SizedBox(height: MorganSpace.sm),
             if (_message != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
@@ -129,31 +148,24 @@ class _QuickBooksAccountMappingScreenState extends ConsumerState<QuickBooksAccou
                           separatorBuilder: (_, __) => const SizedBox(height: MorganSpace.sm),
                           itemBuilder: (context, index) {
                             final mapping = _mappings[index];
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(mapping.accountName, style: theme.textTheme.bodyLarge),
-                              subtitle: Text(
-                                [mapping.accountType, mapping.accountSubtype]
-                                    .whereType<String>()
-                                    .where((value) => value.isNotEmpty)
-                                    .join(' · '),
-                                style: theme.textTheme.bodySmall,
+                            final category = _draftCategories[mapping.qboAccountId];
+                            return AccountMappingRow(
+                              accountName: mapping.accountName,
+                              accountMeta: [
+                                mapping.accountType,
+                                mapping.accountSubtype,
+                              ].whereType<String>().where((value) => value.isNotEmpty).join(' · '),
+                              selectedCategory: category,
+                              categories: quickBooksMorganCategories,
+                              categoryLabel: quickBooksMorganCategoryLabel,
+                              validationError: accountMappingValidationError(
+                                category,
+                                showValidation: _showValidation,
                               ),
-                              trailing: DropdownButton<String>(
-                                value: _draftCategories[mapping.qboAccountId],
-                                items: quickBooksMorganCategories
-                                    .map(
-                                      (category) => DropdownMenuItem(
-                                        value: category,
-                                        child: Text(quickBooksMorganCategoryLabel(category)),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  setState(() => _draftCategories[mapping.qboAccountId] = value);
-                                },
-                              ),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _draftCategories[mapping.qboAccountId] = value);
+                              },
                             );
                           },
                         ),

@@ -1,28 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/brief/brief_formatters.dart';
+import '../../../core/brief/brief_read_tracker_provider.dart';
+import '../../../core/auth/auth_controller.dart';
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/brief/brief_repository.dart';
 import '../../../core/brief/brief_share_service.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_action_card.dart';
+import '../../../shared/widgets/morgan_detail_app_bar.dart';
 import '../../../shared/widgets/morgan_fade_in.dart';
 import '../../../shared/widgets/morgan_metric_card.dart';
+import '../../../shared/widgets/morgan_section_header.dart';
 
-class BriefDetailScreen extends ConsumerWidget {
+class BriefDetailScreen extends ConsumerStatefulWidget {
   const BriefDetailScreen({super.key, required this.date});
 
   final String date;
 
+  @override
+  ConsumerState<BriefDetailScreen> createState() => _BriefDetailScreenState();
+}
+
+class _BriefDetailScreenState extends ConsumerState<BriefDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _markRead());
+  }
+
+  Future<void> _markRead() async {
+    final storeId = ref.read(authControllerProvider).session?.storeId;
+    if (storeId == null || storeId.isEmpty) return;
+
+    final tracker = await ref.read(briefReadTrackerProvider.future);
+    await tracker.markRead(storeId, widget.date);
+    ref.invalidate(briefReadTrackerProvider);
+  }
+
   String _dateTitle() {
-    final parsed = DateTime.tryParse(date);
-    if (parsed == null) return date;
+    final parsed = DateTime.tryParse(widget.date);
+    if (parsed == null) return widget.date;
     return DateFormat('EEEE, MMM d').format(parsed);
   }
 
-  Future<void> _shareBrief(BuildContext context, WidgetRef ref, DailyBrief brief) async {
+  Future<void> _shareBrief(BuildContext context, DailyBrief brief) async {
     final shareService = ref.read(briefShareServiceProvider);
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -63,23 +89,21 @@ class BriefDetailScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
-    final briefAsync = ref.watch(briefDetailProvider(date));
+    final briefAsync = ref.watch(briefDetailProvider(widget.date));
 
     return Scaffold(
       backgroundColor: p.background,
-      appBar: AppBar(
-        backgroundColor: p.background,
-        elevation: 0,
-        title: Text(_dateTitle(), style: theme.textTheme.titleMedium),
+      appBar: MorganDetailAppBar(
+        title: _dateTitle(),
         actions: [
           briefAsync.maybeWhen(
-            data: (brief) => IconButton(
-              icon: const Icon(Icons.ios_share_rounded),
+            data: (brief) => MorganDetailAppBarAction(
+              icon: Icons.ios_share_rounded,
               tooltip: 'Share briefing',
-              onPressed: () => _shareBrief(context, ref, brief),
+              onPressed: () => _shareBrief(context, brief),
             ),
             orElse: () => const SizedBox.shrink(),
           ),
@@ -115,8 +139,7 @@ class BriefDetailScreen extends ConsumerWidget {
             ),
             if (brief.kpiDeltas.isNotEmpty) ...[
               const SizedBox(height: MorganSpace.lg),
-              Text('Key metrics', style: theme.textTheme.titleSmall),
-              const SizedBox(height: MorganSpace.sm),
+              const MorganSectionHeader(title: 'Key metrics'),
               Wrap(
                 spacing: MorganSpace.sm,
                 runSpacing: MorganSpace.sm,
@@ -140,15 +163,23 @@ class BriefDetailScreen extends ConsumerWidget {
                 child: MorganActionCard(
                   title: brief.topAction!.title,
                   body: brief.topAction!.body,
-                  impact: formatImpactRange(brief.topAction!).isEmpty
+                  impact: formatImpactAtRisk(brief.topAction!).isEmpty
                       ? null
-                      : formatImpactRange(brief.topAction!),
+                      : formatImpactAtRisk(brief.topAction!),
+                  onReview: () {
+                    final route = topActionRoute(brief.topAction!);
+                    if (route != null) context.push(route);
+                  },
+                  onAskMorgan: () {
+                    final prompt = topActionChatPrompt(brief.topAction!);
+                    context.push('/chat?prompt=${Uri.encodeComponent(prompt)}');
+                  },
                 ),
               ),
             ],
             const SizedBox(height: MorganSpace.lg),
             OutlinedButton.icon(
-              onPressed: () => _shareBrief(context, ref, brief),
+              onPressed: () => _shareBrief(context, brief),
               icon: const Icon(Icons.ios_share_rounded),
               label: const Text('Share briefing'),
             ),

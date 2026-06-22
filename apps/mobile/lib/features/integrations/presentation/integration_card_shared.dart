@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/integrations/integrations_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_surface.dart';
 
 String formatIntegrationSyncTime(DateTime value) {
   return DateFormat.yMMMd().add_jm().format(value.toLocal());
@@ -38,7 +39,7 @@ class IntegrationComingSoonBadge extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: MorganSpace.sm, vertical: MorganSpace.xxs),
       decoration: BoxDecoration(
         color: p.textMuted.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(MorganRadius.pill),
@@ -52,24 +53,36 @@ class IntegrationComingSoonBadge extends StatelessWidget {
 }
 
 class IntegrationStatusChip extends StatelessWidget {
-  const IntegrationStatusChip({super.key, required this.status});
+  const IntegrationStatusChip({
+    super.key,
+    required this.status,
+    this.needsReauth = false,
+    this.comingSoon = false,
+  });
 
   final IntegrationStatus status;
+  final bool needsReauth;
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
 
-    final (label, color) = switch (status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected => ('Disconnected', p.textMuted),
+    if (comingSoon) {
+      return const IntegrationComingSoonBadge();
+    }
+
+    final (label, color) = switch ((status, needsReauth)) {
+      (_, true) => ('Reconnect needed', p.warning),
+      (IntegrationStatus.connected, _) => ('Connected', p.profit),
+      (IntegrationStatus.syncing, _) => ('Syncing', p.accent),
+      (IntegrationStatus.error, _) => ('Error', p.loss),
+      (IntegrationStatus.disconnected, _) => ('Disconnected', p.textMuted),
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: MorganSpace.sm, vertical: MorganSpace.xxs),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(MorganRadius.pill),
@@ -167,6 +180,79 @@ class IntegrationsOverallCoveragePanel extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// US-UX-13-01 — unified integration card shell (provider · status · sync · coverage).
+class UnifiedIntegrationCard extends StatelessWidget {
+  const UnifiedIntegrationCard({
+    super.key,
+    required this.name,
+    required this.icon,
+    required this.status,
+    required this.dataCoveragePct,
+    this.needsReauth = false,
+    this.comingSoon = false,
+    this.detailLines = const [],
+    this.syncMessage,
+    this.errorMessage,
+    this.lastSyncAt,
+    this.actions = const [],
+  });
+
+  final String name;
+  final IconData icon;
+  final IntegrationStatus status;
+  final int dataCoveragePct;
+  final bool needsReauth;
+  final bool comingSoon;
+  final List<String> detailLines;
+  final String? syncMessage;
+  final String? errorMessage;
+  final DateTime? lastSyncAt;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.morgan;
+    final theme = Theme.of(context);
+
+    return MorganSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: p.accent, size: 22),
+              const SizedBox(width: MorganSpace.sm),
+              Expanded(child: Text(name, style: theme.textTheme.titleMedium)),
+              IntegrationStatusChip(
+                status: status,
+                needsReauth: needsReauth,
+                comingSoon: comingSoon,
+              ),
+            ],
+          ),
+          const SizedBox(height: MorganSpace.sm),
+          for (final line in detailLines) ...[
+            Text(line, style: theme.textTheme.bodySmall),
+          ],
+          if (syncMessage != null)
+            Text(syncMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.accent)),
+          if (!comingSoon) IntegrationLastSyncLine(lastSyncAt: lastSyncAt),
+          if (errorMessage != null) ...[
+            const SizedBox(height: MorganSpace.xs),
+            Text(errorMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
+          ],
+          const SizedBox(height: MorganSpace.md),
+          IntegrationDataCoverageBar(percent: dataCoveragePct, compact: true),
+          if (!comingSoon && actions.isNotEmpty) ...[
+            const SizedBox(height: MorganSpace.md),
+            ...actions,
+          ],
+        ],
+      ),
     );
   }
 }

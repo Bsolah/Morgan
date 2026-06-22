@@ -217,6 +217,8 @@ class BriefHistoryListItem {
   final int version;
   final String? generatedAt;
 
+  bool get hasSignificantDelta => version > 1;
+
   factory BriefHistoryListItem.fromJson(Map<String, dynamic> json) {
     return BriefHistoryListItem(
       date: json['date'] as String? ?? '',
@@ -292,30 +294,44 @@ class DailyBriefNotifier extends AsyncNotifier<DailyBrief> {
       return _placeholderBrief();
     }
 
-    final cache = await ref.watch(briefLocalCacheProvider.future);
+    final cache = ref.watch(briefLocalCacheProvider);
     final cached = cache.load(storeId);
     if (cached != null) {
-      unawaited(_fetchAndUpdate(storeId));
+      unawaited(_fetchAndUpdate(storeId, preserveOnError: true));
       return cached;
     }
 
     return _fetchAndUpdate(storeId);
   }
 
+  /// Pull-to-refresh: keep cached brief visible while the network fetch runs.
   Future<void> refresh() async {
     final storeId = ref.read(authControllerProvider).session?.storeId ?? '';
     if (storeId.isEmpty) return;
+
+    if (state.hasValue) {
+      await _fetchAndUpdate(storeId, preserveOnError: true);
+      return;
+    }
 
     state = const AsyncLoading();
     state = AsyncData(await _fetchAndUpdate(storeId));
   }
 
-  Future<DailyBrief> _fetchAndUpdate(String storeId) async {
-    final brief = await ref.read(briefRepositoryProvider).getTodayBrief();
-    final cache = await ref.read(briefLocalCacheProvider.future);
-    await cache.save(storeId, brief);
-    state = AsyncData(brief);
-    return brief;
+  Future<DailyBrief> _fetchAndUpdate(String storeId, {bool preserveOnError = false}) async {
+    try {
+      final brief = await ref.read(briefRepositoryProvider).getTodayBrief();
+      final cache = ref.read(briefLocalCacheProvider);
+      await cache.save(storeId, brief);
+      state = AsyncData(brief);
+      return brief;
+    } catch (error, stackTrace) {
+      if (preserveOnError && state.hasValue) {
+        return state.requireValue;
+      }
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
   }
 
   DailyBrief _placeholderBrief() {
@@ -351,7 +367,7 @@ class BriefHistoryListNotifier extends AsyncNotifier<BriefHistoryList> {
       unawaited(_prefetchRecentBriefs(storeId, history));
       return history;
     } catch (_) {
-      final cache = await ref.read(briefLocalCacheProvider.future);
+      final cache = ref.read(briefLocalCacheProvider);
       final cachedBriefs = cache.loadHistoryBriefs(storeId);
       if (cachedBriefs.isEmpty) rethrow;
       return BriefHistoryList(
@@ -372,7 +388,7 @@ class BriefHistoryListNotifier extends AsyncNotifier<BriefHistoryList> {
   }
 
   Future<void> _prefetchRecentBriefs(String storeId, BriefHistoryList history) async {
-    final cache = await ref.read(briefLocalCacheProvider.future);
+    final cache = ref.read(briefLocalCacheProvider);
     final repository = ref.read(briefRepositoryProvider);
     final dates = history.items.where((item) => item.hasBrief).take(BriefLocalCache.maxHistoryEntries);
 
@@ -403,7 +419,7 @@ final briefDetailProvider = FutureProvider.autoDispose.family<DailyBrief, String
     throw StateError('No store in session');
   }
 
-  final cache = await ref.watch(briefLocalCacheProvider.future);
+  final cache = ref.watch(briefLocalCacheProvider);
   final cached = cache.loadHistoryEntry(storeId, date);
 
   try {

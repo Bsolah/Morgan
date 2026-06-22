@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/profit/profit_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_skeleton.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
@@ -17,10 +18,7 @@ class PricingSuggestionsSection extends ConsumerWidget {
     final suggestionsAsync = ref.watch(pricingSuggestionsProvider);
 
     return suggestionsAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: MorganSpace.screenH, vertical: MorganSpace.lg),
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => const MorganProfitSectionSkeleton(),
       error: (_, __) => const SizedBox.shrink(),
       data: (response) {
         if (response == null || response.isEmpty) {
@@ -32,10 +30,12 @@ class PricingSuggestionsSection extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const MorganScreenHeader(
-                title: 'Pricing suggestions',
-                subtitle: 'Margin-backed recommendations from your catalog and return data',
+              const MorganSectionHeader(title: 'Pricing suggestions'),
+              Text(
+                'Margin-backed recommendations from your catalog and return data',
+                style: theme.textTheme.bodySmall,
               ),
+              const SizedBox(height: MorganSpace.sm),
               MorganSurface(
                 child: Text(
                   'Recommendations only — update prices manually in Shopify.',

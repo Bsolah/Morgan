@@ -8,6 +8,7 @@ import '../../../core/finance/finance_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
+import '../../../shared/widgets/morgan_error_state.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
 class TargetMarginScreen extends ConsumerStatefulWidget {
@@ -95,6 +96,7 @@ class _TargetMarginScreenState extends ConsumerState<TargetMarginScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _saveError = 'Could not save target margin. Try again.');
+      showMorganSaveErrorSnackBar(context, message: 'Could not save target margin. Try again.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -167,6 +169,11 @@ class _TargetMarginScreenState extends ConsumerState<TargetMarginScreen> {
                           label: '${_sliderValue.round()}%',
                           onChanged: _syncFromSlider,
                         ),
+                        Text(
+                          'Briefings and profit alerts will flag when margin falls below ${_sliderValue.round()}%.',
+                          style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
+                        ),
+                        const SizedBox(height: MorganSpace.sm),
                         Text(
                           'Default is 40%. Enter any value from 0–100%.',
                           style: theme.textTheme.bodySmall,

@@ -114,6 +114,10 @@ class MarketingOverview {
 
     required this.campaigns,
 
+    required this.trendDays,
+
+    required this.trend,
+
   });
 
 
@@ -138,6 +142,10 @@ class MarketingOverview {
 
   final List<MarketingCampaignMetrics> campaigns;
 
+  final int trendDays;
+
+  final List<CampaignTrendPoint> trend;
+
 
 
   factory MarketingOverview.fromJson(Map<String, dynamic> json) {
@@ -151,6 +159,8 @@ class MarketingOverview {
         .map((item) => MarketingCampaignMetrics.fromJson(item as Map<String, dynamic>))
 
         .toList();
+
+    final trendJson = json['trend'] as List<dynamic>? ?? const [];
 
 
 
@@ -175,6 +185,10 @@ class MarketingOverview {
       roasTooltip: tooltips['roas'] as String? ?? '',
 
       campaigns: campaigns,
+
+      trendDays: (json['trend_days'] as num?)?.toInt() ?? 7,
+
+      trend: trendJson.whereType<Map<String, dynamic>>().map(CampaignTrendPoint.fromJson).toList(),
 
     );
 
@@ -690,7 +704,7 @@ class MarketingRepository {
 
         'window_days': key.windowDays,
 
-        'trend_days': 30,
+        'trend_days': 7,
 
       },
 
@@ -764,7 +778,7 @@ final campaignDetailProvider =
 
 final marketingMerProvider = FutureProvider.autoDispose<MarketingMerResponse>((ref) async {
 
-  return ref.watch(marketingRepositoryProvider).getMer();
+  return ref.watch(marketingRepositoryProvider).getMer(windowDays: 30, trendDays: 7);
 
 });
 

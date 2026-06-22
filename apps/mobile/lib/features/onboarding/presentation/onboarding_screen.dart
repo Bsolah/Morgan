@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/brief/brief_formatters.dart';
+import '../../../core/brief/brief_repository.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/finance/finance_repository.dart';
 import '../../../core/onboarding/onboarding_repository.dart';
 import '../../../core/shopify/shopify_oauth.dart';
 import '../../../core/sync/sync_status.dart';
@@ -15,6 +19,7 @@ import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_fade_in.dart';
 import '../../../shared/widgets/morgan_logo.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
+import '../../../shared/widgets/morgan_surface.dart';
 import 'widgets/onboarding_step_indicator.dart';
 import 'widgets/optional_integrations_panel.dart';
 import 'widgets/sync_progress_panel.dart';
@@ -37,6 +42,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   static const _stepLabels = ['Welcome', 'Connect', 'Confirmed', 'Sync'];
 
+  static const _shopifyScopes = [
+    'Orders and refunds — for profit and margin tracking',
+    'Products and variants — for SKU economics',
+    'Inventory levels — for stockout alerts',
+    'Shop profile — for timezone and currency',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -46,9 +58,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _bootstrapReturningUser() async {
     final session = await ref.read(authSessionProvider.future);
     if (!mounted || session == null) return;
-    setState(() {
-      _connectedShop = session.shopDomain;
-    });
+    setState(() => _connectedShop = session.shopDomain);
   }
 
   @override
@@ -154,34 +164,88 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (mounted) context.go('/home');
   }
 
+  String _firstBriefMessage(WidgetRef ref) {
+    final schedule = ref.watch(briefingScheduleProvider).valueOrNull;
+    if (schedule != null && schedule.nextBriefingAt.isNotEmpty) {
+      final parsed = DateTime.tryParse(schedule.nextBriefingAt);
+      if (parsed != null) {
+        return 'Your first brief arrives ${DateFormat('EEE, MMM d · h:mm a').format(parsed.toLocal())}.';
+      }
+    }
+
+    final brief = ref.watch(dailyBriefProvider).valueOrNull;
+    if (brief != null && brief.nextBriefingAt.isNotEmpty) {
+      return 'Your first brief arrives by ${formatNextBriefingDateTime(brief)}.';
+    }
+
+    final time = schedule?.briefingTimeLocal ?? '06:00';
+    return 'Your first brief arrives at $time.';
+  }
+
+  bool _syncComplete(SyncStatus status) =>
+      status.overallPercent >= 100 ||
+      status.storeStatus == 'ready' ||
+      status.tasks.every((t) => t.status == SyncTaskStatus.complete);
+
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
     final syncStatus = ref.watch(syncStatusProvider);
+    final isWelcome = _phase == OnboardingPhase.welcome;
 
     return Scaffold(
       backgroundColor: p.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: MorganSpace.lg),
-              MorganFadeIn(child: const MorganLogo(size: 44, showWordmark: true)),
-              const SizedBox(height: MorganSpace.lg),
-              OnboardingStepIndicator(currentIndex: _stepIndex, labels: _stepLabels),
-              const SizedBox(height: MorganSpace.xl),
-              Expanded(child: _buildStepContent(context, syncStatus)),
-              if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-                const SizedBox(height: MorganSpace.sm),
-              ],
-              _buildPrimaryAction(context),
-              const SizedBox(height: MorganSpace.xl),
+        child: Column(
+          children: [
+            if (!isWelcome) ...[
+              const SizedBox(height: MorganSpace.md),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: MorganLogo(size: 36, showWordmark: true),
+                ),
+              ),
             ],
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MorganSpace.xl,
+                MorganSpace.lg,
+                MorganSpace.xl,
+                MorganSpace.sm,
+              ),
+              child: OnboardingStepIndicator(currentIndex: _stepIndex, labels: _stepLabels),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
+                child: _buildStepContent(context, syncStatus),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MorganSpace.xl,
+                MorganSpace.sm,
+                MorganSpace.xl,
+                MorganSpace.xl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_errorMessage != null) ...[
+                    Text(
+                      _errorMessage!,
+                      style: theme.textTheme.bodySmall?.copyWith(color: p.loss),
+                    ),
+                    const SizedBox(height: MorganSpace.sm),
+                  ],
+                  _buildPrimaryAction(context, syncStatus),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -192,35 +256,31 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final p = context.morgan;
 
     return switch (_phase) {
-      OnboardingPhase.welcome => SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Morgan — your AI CFO, not a dashboard',
-                style: theme.textTheme.headlineMedium,
+      OnboardingPhase.welcome => Center(
+          child: SingleChildScrollView(
+            child: MorganFadeIn(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const MorganLogo(size: 72),
+                  const SizedBox(height: MorganSpace.xxl),
+                  Text(
+                    'Morgan — your AI CFO,\nnot a dashboard',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: MorganSpace.md),
+                  Text(
+                    'Daily briefings, ranked profit actions, and cash clarity — '
+                    'grounded in your Shopify data. Connect once and Morgan handles the rest.',
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
               ),
-              const SizedBox(height: MorganSpace.md),
-              Text(
-                'Daily briefings, profit actions, and cash clarity — grounded in your Shopify data.',
-                style: theme.textTheme.bodyLarge,
-              ),
-              const SizedBox(height: MorganSpace.xl),
-              const _ValueBullet(
-                title: 'Morning brief',
-                subtitle: 'Know what changed and why',
-              ),
-              const SizedBox(height: MorganSpace.md),
-              const _ValueBullet(
-                title: 'Ranked actions',
-                subtitle: 'Focus on what moves profit',
-              ),
-              const SizedBox(height: MorganSpace.md),
-              const _ValueBullet(
-                title: 'Ask Morgan',
-                subtitle: 'Answers backed by your store data',
-              ),
-            ],
+            ),
           ),
         ),
       OnboardingPhase.connectShopify => SingleChildScrollView(
@@ -230,16 +290,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               Text('Connect Shopify', style: theme.textTheme.headlineMedium),
               const SizedBox(height: MorganSpace.sm),
               Text(
-                'Enter your store domain to authorize Morgan. We read orders, products, inventory, and payouts.',
-                style: theme.textTheme.bodyLarge,
+                'Authorize Morgan to read your store. We never change products or orders without you.',
+                maxLines: 3,
+                style: theme.textTheme.bodyMedium,
               ),
-              const SizedBox(height: MorganSpace.xl),
+              const SizedBox(height: MorganSpace.lg),
+              MorganSurface(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('What Morgan reads', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: MorganSpace.sm),
+                    ..._shopifyScopes.map(
+                      (scope) => Padding(
+                        padding: const EdgeInsets.only(bottom: MorganSpace.xs),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.check_rounded, size: 16, color: p.accent),
+                            const SizedBox(width: MorganSpace.xs),
+                            Expanded(child: Text(scope, style: theme.textTheme.bodySmall)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: MorganSpace.lg),
               if (_isConnecting) ...[
-                const Center(child: CircularProgressIndicator()),
-                const SizedBox(height: MorganSpace.md),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(MorganRadius.pill),
+                  child: const LinearProgressIndicator(minHeight: 4),
+                ),
+                const SizedBox(height: MorganSpace.sm),
                 Text(
                   'Complete sign-in in your browser…',
-                  style: theme.textTheme.bodyMedium,
+                  style: theme.textTheme.bodySmall,
                 ),
               ] else
                 TextField(
@@ -281,8 +368,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             const SizedBox(height: MorganSpace.md),
             Text(
-              'Morgan will sync your historical data and prepare your first briefing.',
-              style: theme.textTheme.bodyLarge,
+              'Morgan is preparing your historical data and first briefing.',
+              maxLines: 3,
+              style: theme.textTheme.bodyMedium,
             ),
           ],
         ),
@@ -294,56 +382,39 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: MorganSpace.sm),
               Text(
                 'This runs in the background. You can continue while we finish.',
-                style: theme.textTheme.bodyLarge,
+                maxLines: 3,
+                style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: MorganSpace.lg),
               syncStatus.when(
-                data: (status) => SyncProgressPanel(status: status),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, e) {
-                  final session = ref.read(authSessionProvider).maybeWhen(
-                        data: (value) => value,
-                        orElse: () => null,
-                      );
-                  return SyncProgressPanel(
-                    status: SyncStatus(
-                      storeId: session?.storeId ?? '',
-                      overallPercent: 0,
-                      etaMinutes: 4,
-                      storeStatus: 'syncing',
-                      tasks: const [
-                        SyncTaskProgress(
-                          id: 'orders',
-                          label: 'Orders',
-                          percent: 0,
-                          status: SyncTaskStatus.pending,
-                        ),
-                        SyncTaskProgress(
-                          id: 'products',
-                          label: 'Products',
-                          percent: 0,
-                          status: SyncTaskStatus.pending,
-                        ),
-                        SyncTaskProgress(
-                          id: 'inventory',
-                          label: 'Inventory',
-                          percent: 0,
-                          status: SyncTaskStatus.pending,
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                data: (status) => SyncProgressPanel(
+                  status: status,
+                  firstBriefMessage: _firstBriefMessage(ref),
+                ),
+                loading: () => SyncProgressPanel(
+                  status: SyncProgressPanel.placeholderStatus,
+                  firstBriefMessage: _firstBriefMessage(ref),
+                ),
+                error: (_, __) => SyncProgressPanel(
+                  status: SyncProgressPanel.placeholderStatus,
+                  firstBriefMessage: _firstBriefMessage(ref),
+                ),
               ),
               const SizedBox(height: MorganSpace.xl),
-              OptionalIntegrationsPanel(onSkip: _finishOnboarding),
+              OptionalIntegrationsPanel(
+                onSkip: syncStatus.valueOrNull != null && _syncComplete(syncStatus.value!)
+                    ? _finishOnboarding
+                    : null,
+              ),
             ],
           ),
         ),
     };
   }
 
-  Widget _buildPrimaryAction(BuildContext context) {
+  Widget _buildPrimaryAction(BuildContext context, AsyncValue<SyncStatus> syncStatus) {
+    final syncComplete = syncStatus.valueOrNull != null && _syncComplete(syncStatus.value!);
+
     return switch (_phase) {
       OnboardingPhase.welcome => Column(
           children: [
@@ -351,8 +422,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               label: 'Get started',
               onPressed: () => _goToPhase(OnboardingPhase.connectShopify),
             ),
-            if (AppConfig.canSkipSetup) ...[
-              const SizedBox(height: MorganSpace.sm),
+            if (AppConfig.canSkipSetup)
               Align(
                 alignment: Alignment.center,
                 child: TextButton(
@@ -360,24 +430,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   child: const Text('Skip setup (local dev)'),
                 ),
               ),
-            ],
           ],
         ),
       OnboardingPhase.connectShopify => Column(
           children: [
-            if (_hasLinkedStore) ...[
+            if (_hasLinkedStore)
               Align(
-                alignment: Alignment.centerRight,
+                alignment: Alignment.center,
                 child: TextButton(
                   onPressed: _isConnecting ? null : _skipConnectIfLinked,
                   child: const Text('Skip — store already linked'),
                 ),
               ),
-              const SizedBox(height: MorganSpace.xs),
-            ],
             MorganPrimaryButton(
               label: _isConnecting ? 'Connecting…' : 'Connect Shopify',
-              onPressed: _isConnecting ? () {} : _connectShopify,
+              onPressed: _isConnecting ? null : _connectShopify,
             ),
           ],
         ),
@@ -386,44 +453,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           onPressed: () => _goToPhase(OnboardingPhase.syncProgress),
         ),
       OnboardingPhase.syncProgress => MorganPrimaryButton(
-          label: 'Continue to Morgan',
+          label: syncComplete ? 'Open Morgan' : 'Continue to Morgan',
           onPressed: _finishOnboarding,
         ),
     };
-  }
-}
-
-class _ValueBullet extends StatelessWidget {
-  const _ValueBullet({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          margin: const EdgeInsets.only(top: 6),
-          decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: MorganSpace.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: theme.textTheme.titleSmall),
-              Text(subtitle, style: theme.textTheme.bodySmall),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }

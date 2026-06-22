@@ -121,60 +121,40 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
 
   @override
   Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
     final status = widget.status;
 
-    return MorganSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IntegrationStatusIcon(status: status.status),
-              const SizedBox(width: MorganSpace.sm),
-              Icon(Icons.account_balance_outlined, color: p.accent, size: 20),
-              const SizedBox(width: MorganSpace.sm),
-              Expanded(child: Text('Bank (Plaid)', style: theme.textTheme.titleMedium)),
-              IntegrationStatusChip(status: status.status),
-            ],
+    final detailLines = [
+      if (status.displayLabel != null) status.displayLabel!,
+      if (status.pendingUncategorizedCount > 0)
+        '${status.pendingUncategorizedCount} transactions need classification',
+      if (status.status == IntegrationStatus.disconnected) status.privacyDisclosure,
+    ];
+
+    return UnifiedIntegrationCard(
+      name: 'Bank (Plaid)',
+      icon: Icons.account_balance_outlined,
+      status: status.status,
+      dataCoveragePct: widget.dataCoveragePct,
+      detailLines: detailLines,
+      errorMessage: status.errorMessage,
+      lastSyncAt: status.lastSyncAt,
+      actions: [
+        if (status.status == IntegrationStatus.disconnected)
+          MorganPrimaryButton(
+            label: _connecting ? 'Connecting…' : 'Connect bank',
+            onPressed: _connecting ? null : _connectPlaid,
+          )
+        else if (status.status == IntegrationStatus.error)
+          MorganPrimaryButton(
+            label: _connecting ? 'Reconnecting…' : 'Reconnect',
+            onPressed: _connecting ? null : _connectPlaid,
+          )
+        else
+          TextButton(
+            onPressed: _disconnecting ? null : _disconnectPlaid,
+            child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
           ),
-          const SizedBox(height: MorganSpace.sm),
-          if (status.displayLabel != null)
-            Text(status.displayLabel!, style: theme.textTheme.bodySmall),
-          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
-          if (status.pendingUncategorizedCount > 0)
-            Text(
-              '${status.pendingUncategorizedCount} transactions need classification',
-              style: theme.textTheme.bodySmall,
-            ),
-          if (status.status == IntegrationStatus.disconnected)
-            Text(status.privacyDisclosure, style: theme.textTheme.bodySmall),
-          if (status.errorMessage != null) ...[
-            const SizedBox(height: MorganSpace.xs),
-            Text(status.errorMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-          ],
-          const SizedBox(height: MorganSpace.md),
-          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
-          const SizedBox(height: MorganSpace.md),
-          if (status.status == IntegrationStatus.disconnected)
-            MorganPrimaryButton(
-              label: _connecting ? 'Connecting…' : 'Connect bank',
-              onPressed: _connecting ? null : _connectPlaid,
-            )
-          else if (status.status == IntegrationStatus.error)
-            MorganPrimaryButton(
-              label: _connecting ? 'Reconnecting…' : 'Reconnect',
-              onPressed: _connecting ? null : _connectPlaid,
-            )
-          else ...[
-            TextButton(
-              onPressed: _disconnecting ? null : _disconnectPlaid,
-              child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
-            ),
-          ],
-        ],
-      ),
+      ],
     );
   }
 }

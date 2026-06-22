@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/profit/profit_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_skeleton.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
@@ -24,10 +25,7 @@ class ProfitLeaksSection extends ConsumerWidget {
         children: [
           const MorganSectionHeader(title: 'Active profit leaks'),
           leaksAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.only(top: MorganSpace.md),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            loading: () => const MorganProfitSectionSkeleton(cardCount: 2),
             error: (_, __) => Padding(
               padding: const EdgeInsets.only(top: MorganSpace.sm),
               child: Text('Could not load profit leaks.', style: theme.textTheme.bodyMedium),

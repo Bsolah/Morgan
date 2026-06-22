@@ -35,7 +35,7 @@ class CashOverviewScreen extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.only(bottom: MorganSpace.huge),
               children: [
-                const MorganScreenHeader(
+                const MorganDetailScreenHeader(
                   title: 'Cash',
                   subtitle: 'Monitor liquidity separately from profit',
                 ),
@@ -100,7 +100,12 @@ class _ReconciliationSummaryCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const MorganSectionHeader(title: 'Payout reconciliation'),
+        MorganSectionHeader(
+          title: 'Payout reconciliation',
+          badgeCount: overview.unmatchedPayoutCount + overview.unmatchedDepositCount,
+          action: () => context.push('/cash/unmatched'),
+          actionLabel: overview.hasReconciliationGaps ? 'Review' : 'View',
+        ),
         MorganSurface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,26 +142,54 @@ class _CashPositionMetrics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.morgan;
+    final theme = Theme.of(context);
     final balance = double.tryParse(runway.currentBalance ?? '');
     final outflow = double.tryParse(runway.avgDailyNetOutflow ?? '');
-
-    MetricTrend? runwayTrend;
-    switch (runway.runwayStatus) {
-      case 'healthy':
-        runwayTrend = MetricTrend.up;
-      case 'warning':
-      case 'critical':
-        runwayTrend = MetricTrend.down;
-      default:
-        runwayTrend = null;
-    }
+    final statusColor = switch (runway.runwayStatus) {
+      'healthy' => p.profit,
+      'warning' => p.warning,
+      'critical' => p.loss,
+      _ => p.textMuted,
+    };
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        MorganSurface(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('CASH RUNWAY', style: theme.textTheme.labelMedium),
+              const SizedBox(height: MorganSpace.sm),
+              Text(
+                runway.displayValue,
+                style: theme.textTheme.headlineMedium?.copyWith(color: statusColor),
+              ),
+              const SizedBox(height: MorganSpace.xs),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: MorganSpace.sm,
+                  vertical: MorganSpace.xxs,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(MorganRadius.pill),
+                ),
+                child: Text(
+                  runway.statusLabel,
+                  style: theme.textTheme.labelMedium?.copyWith(color: statusColor),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: MorganSpace.sm),
         Row(
           children: [
             Expanded(
               child: MorganMetricCard(
+                compact: true,
                 label: 'Current balance',
                 value: balance == null ? '—' : money.format(balance),
               ),
@@ -164,21 +197,17 @@ class _CashPositionMetrics extends StatelessWidget {
             const SizedBox(width: MorganSpace.sm),
             Expanded(
               child: MorganMetricCard(
-                label: 'Runway',
-                value: runway.displayValue,
-                trend: runwayTrend,
+                compact: true,
+                label: 'Avg daily burn',
+                value: outflow == null ? '—' : money.format(outflow),
+                subtitle: '30-day net outflow',
               ),
             ),
           ],
         ),
-        const SizedBox(height: MorganSpace.sm),
-        MorganMetricCard(
-          label: '30d avg daily net outflow',
-          value: outflow == null ? '—' : money.format(outflow),
-        ),
         if (runway.message != null) ...[
           const SizedBox(height: MorganSpace.sm),
-          Text(runway.message!, style: Theme.of(context).textTheme.bodySmall),
+          Text(runway.message!, style: theme.textTheme.bodySmall),
         ],
       ],
     );

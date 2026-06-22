@@ -35,9 +35,7 @@ class _BiometricUnlockScreenState extends ConsumerState<BiometricUnlockScreen> {
     });
 
     final biometric = ref.read(biometricServiceProvider);
-    final success = await biometric.authenticate(
-      reason: 'Unlock Morgan to view your financial briefings',
-    );
+    final success = await biometric.authenticate(reason: 'Unlock Morgan');
 
     if (!mounted) return;
 
@@ -50,20 +48,19 @@ class _BiometricUnlockScreenState extends ConsumerState<BiometricUnlockScreen> {
 
     setState(() {
       _unlocking = false;
-      _error = 'Biometric unlock failed. Try again or sign out.';
+      _error = 'Could not verify your identity.';
     });
   }
 
-  Future<void> _signOut() async {
+  Future<void> _reauthWithShopify() async {
     await ref.read(authControllerProvider.notifier).logout();
-    if (mounted) context.go('/onboarding');
+    if (mounted) context.go('/onboarding?reauth=1');
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
-    final shopDomain = ref.watch(authControllerProvider).session?.shopDomain;
 
     return Scaffold(
       backgroundColor: p.background,
@@ -71,33 +68,39 @@ class _BiometricUnlockScreenState extends ConsumerState<BiometricUnlockScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Spacer(flex: 2),
+              const MorganLogo(size: 64),
               const SizedBox(height: MorganSpace.xxl),
-              const MorganLogo(size: 56, showWordmark: true),
-              const Spacer(),
-              Text('Welcome back', style: theme.textTheme.headlineMedium),
-              const SizedBox(height: MorganSpace.sm),
-              if (shopDomain != null)
-                Text(shopDomain, style: theme.textTheme.titleMedium?.copyWith(color: p.accent)),
-              const SizedBox(height: MorganSpace.md),
               Text(
-                'Use Face ID or fingerprint to open Morgan.',
-                style: theme.textTheme.bodyLarge,
+                'Unlock Morgan',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineMedium,
+              ),
+              const SizedBox(height: MorganSpace.sm),
+              Text(
+                'Use Face ID or fingerprint to continue.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
               ),
               if (_error != null) ...[
                 const SizedBox(height: MorganSpace.md),
-                Text(_error!, style: theme.textTheme.bodyMedium?.copyWith(color: p.loss)),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  style: theme.textTheme.bodySmall?.copyWith(color: p.loss),
+                ),
               ],
-              const Spacer(),
-              if (_unlocking)
-                const Center(child: CircularProgressIndicator())
-              else
-                MorganPrimaryButton(label: 'Unlock', onPressed: _unlock),
+              const Spacer(flex: 3),
+              MorganPrimaryButton(
+                label: _unlocking ? 'Unlocking…' : 'Try again',
+                onPressed: _unlocking ? null : _unlock,
+              ),
               const SizedBox(height: MorganSpace.sm),
               TextButton(
-                onPressed: _signOut,
-                child: const Text('Sign out'),
+                onPressed: _reauthWithShopify,
+                child: const Text('Sign in with Shopify again'),
               ),
               const SizedBox(height: MorganSpace.xl),
             ],

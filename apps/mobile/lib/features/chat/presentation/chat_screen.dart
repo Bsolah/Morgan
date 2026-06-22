@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../../../core/chat/chat_repository.dart';
 import '../../../core/chat/chat_starters_provider.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/network/network_status_provider.dart';
 import '../../../core/recommendations/recommendation_detail.dart';
 import '../../../core/recommendations/recommendations_repository.dart';
 import '../../../core/scenarios/scenarios_repository.dart';
@@ -15,8 +17,10 @@ import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_chip.dart';
 import '../../../shared/widgets/morgan_fade_in.dart';
 import '../../../shared/widgets/morgan_logo.dart';
+import '../../../shared/widgets/morgan_offline_banner.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import '../../../shared/widgets/morgan_typing_indicator.dart';
 import 'chat_citation_detail_sheet.dart';
 import 'chat_inline_action_card.dart';
 import 'chat_inline_scenario_card.dart';
@@ -41,6 +45,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _initialPromptSent = false;
   String? _busyActionId;
   String? _busyScenarioSaveId;
+  String? _retryContent;
   String? _error;
 
   @override
@@ -67,6 +72,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _messages = messages;
         _loadingSession = false;
       });
+      ref.read(isOfflineProvider.notifier).state = false;
       _maybeSendInitialPrompt();
     } catch (error) {
       if (!mounted) return;
@@ -74,7 +80,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _loadingSession = false;
         _error = 'Could not start chat session.';
       });
+      if (_isConnectionError(error)) {
+        ref.read(isOfflineProvider.notifier).state = true;
+      }
     }
+  }
+
+  bool _isConnectionError(Object error) {
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout;
+    }
+    return false;
   }
 
   void _maybeSendInitialPrompt() {
@@ -96,6 +114,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _sending = true;
       _error = null;
+      _retryContent = null;
       _messages = [
         ..._messages,
         ChatMessage(
@@ -160,17 +179,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _messages[assistantIndex] = assistant.copyWith(isStreaming: false);
           _sending = false;
         });
+        ref.read(isOfflineProvider.notifier).state = false;
       }
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error = 'Morgan could not answer right now. Try again.';
+        _retryContent = messageContent;
         if (_messages.isNotEmpty && _messages.last.isStreaming) {
           _messages = _messages.sublist(0, _messages.length - 1);
         }
       });
+      if (_isConnectionError(error)) {
+        ref.read(isOfflineProvider.notifier).state = true;
+      }
     }
+  }
+
+  void _retryLastMessage() {
+    final content = _retryContent;
+    if (content == null || content.isEmpty) return;
+    _sendMessage(content: content);
   }
 
   Future<void> _acceptAction(String messageId) async {
@@ -336,7 +365,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final p = context.morgan;
     final theme = Theme.of(context);
     final hasMessages = _messages.isNotEmpty;
+    final isOffline = ref.watch(isOfflineProvider);
     final startersAsync = ref.watch(chatStartersProvider);
+    final showEmptyStarters = !hasMessages && !_loadingSession;
 
     return Scaffold(
       backgroundColor: p.background,
@@ -347,6 +378,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               title: 'Ask Morgan',
               subtitle: 'Grounded in your store data',
             ),
+            if (isOffline) const MorganOfflineBanner(),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
@@ -358,53 +390,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                      itemCount: hasMessages ? _messages.length + 1 : 2,
+                      itemCount: hasMessages
+                          ? _messages.length + 1 + (_retryContent != null ? 1 : 0)
+                          : 1,
                       itemBuilder: (context, index) {
                         if (!hasMessages) {
-                          if (index == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: MorganSpace.xl),
-                              child: MorganFadeIn(
-                                child: MorganSurface(
-                                  color: p.surfaceMuted,
-                                  elevated: false,
-                                  child: Row(
-                                    children: [
-                                      MorganLogo(size: 32),
-                                      const SizedBox(width: MorganSpace.md),
-                                      Expanded(
-                                        child: Text(
-                                          'Ask about profit, cash, ads, or inventory. Every answer cites your data.',
-                                          style: theme.textTheme.bodyMedium,
-                                        ),
+                          return Padding(
+                            padding: const EdgeInsets.only(top: MorganSpace.md, bottom: MorganSpace.xl),
+                            child: MorganFadeIn(
+                              child: MorganSurface(
+                                color: p.surfaceMuted,
+                                elevated: false,
+                                child: Row(
+                                  children: [
+                                    MorganLogo(size: 32),
+                                    const SizedBox(width: MorganSpace.md),
+                                    Expanded(
+                                      child: Text(
+                                        'Ask about profit, cash, ads, or inventory. Every answer cites your data.',
+                                        style: theme.textTheme.bodyMedium,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            );
-                          }
-                          return startersAsync.when(
-                            data: (starters) => _SuggestedStarters(
-                              starters: starters,
-                              onTap: _sendStarter,
-                              enabled: !_sending,
-                            ),
-                            loading: () => const _SuggestedStartersLoading(),
-                            error: (_, __) => _SuggestedStarters(
-                              starters: const [
-                                ChatStarter(
-                                  label: 'Why did profit drop?',
-                                  message: 'Why did profit drop yesterday?',
-                                ),
-                                ChatStarter(label: 'Cash runway?', message: 'What is my cash runway?'),
-                                ChatStarter(
-                                  label: 'Pause ads?',
-                                  message: 'Which campaigns should I pause?',
-                                ),
-                              ],
-                              onTap: _sendStarter,
-                              enabled: !_sending,
                             ),
                           );
                         }
@@ -413,7 +422,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           return const SizedBox(height: MorganSpace.md);
                         }
 
-                        final message = _messages[index - 1];
+                        final messageIndex = index - 1;
+                        if (messageIndex >= _messages.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: MorganSpace.md),
+                            child: _ChatErrorBubble(onRetry: _retryLastMessage),
+                          );
+                        }
+
+                        final message = _messages[messageIndex];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: MorganSpace.md),
                           child: message.role == 'user'
@@ -439,12 +456,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       },
                     ),
             ),
+            if (showEmptyStarters)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  MorganSpace.screenH,
+                  0,
+                  MorganSpace.screenH,
+                  MorganSpace.sm,
+                ),
+                child: startersAsync.when(
+                  data: (starters) => _SuggestedStarters(
+                    starters: starters,
+                    onTap: _sendStarter,
+                    enabled: !_sending,
+                  ),
+                  loading: () => const _SuggestedStartersLoading(),
+                  error: (_, __) => _SuggestedStarters(
+                    starters: const [
+                      ChatStarter(
+                        label: 'Why did profit drop?',
+                        message: 'Why did profit drop yesterday?',
+                      ),
+                      ChatStarter(label: 'Cash runway?', message: 'What is my cash runway?'),
+                      ChatStarter(
+                        label: 'Pause ads?',
+                        message: 'Which campaigns should I pause?',
+                      ),
+                    ],
+                    onTap: _sendStarter,
+                    enabled: !_sending,
+                  ),
+                ),
+              ),
             Container(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 MorganSpace.screenH,
                 MorganSpace.sm,
                 MorganSpace.screenH,
-                MorganSpace.md,
+                MorganSpace.md + MediaQuery.viewInsetsOf(context).bottom,
               ),
               decoration: BoxDecoration(
                 color: p.navBar,
@@ -483,20 +532,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                   const SizedBox(width: MorganSpace.sm),
-                  FilledButton(
-                    onPressed: _loadingSession || _sending ? null : () => _sendMessage(),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(MorganRadius.sm)),
+                  Semantics(
+                    button: true,
+                    label: _sending ? 'Sending message' : 'Send message',
+                    child: FilledButton(
+                      onPressed: _loadingSession || _sending ? null : () => _sendMessage(),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(48, 48),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(MorganRadius.sm),
+                        ),
+                      ),
+                      child: _sending
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: p.accentOn),
+                            )
+                          : const Icon(Icons.arrow_upward_rounded, size: 20),
                     ),
-                    child: _sending
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: p.accentOn),
-                          )
-                        : const Icon(Icons.arrow_upward_rounded, size: 20),
                   ),
                 ],
               ),
@@ -589,17 +644,23 @@ class _UserBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
 
     return Align(
       alignment: Alignment.centerRight,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        padding: const EdgeInsets.symmetric(horizontal: MorganSpace.md, vertical: MorganSpace.sm),
-        decoration: BoxDecoration(
-          color: p.accentMuted,
-          borderRadius: BorderRadius.circular(MorganRadius.md),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: MorganSpace.md, vertical: MorganSpace.sm),
+          decoration: BoxDecoration(
+            color: p.accentMuted,
+            borderRadius: BorderRadius.circular(MorganRadius.md),
+          ),
+          child: _FinanceRichText(
+            text: content,
+            style: theme.textTheme.bodyMedium?.copyWith(color: p.textPrimary),
+          ),
         ),
-        child: Text(content, style: theme.textTheme.bodyMedium?.copyWith(color: p.textPrimary)),
       ),
     );
   }
@@ -632,29 +693,35 @@ class _AssistantBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
 
     return Align(
       alignment: Alignment.centerLeft,
-      child: MorganSurface(
-        color: p.surfaceMuted,
-        elevated: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                MorganLogo(size: 20),
-                const SizedBox(width: MorganSpace.xs),
-                Text('Morgan', style: theme.textTheme.labelMedium),
-                const Spacer(),
-                if (message.confidence != null) _ConfidenceBadge(confidence: message.confidence!),
-              ],
-            ),
-            const SizedBox(height: MorganSpace.sm),
-            Text(
-              message.content.isEmpty && message.isStreaming ? 'Thinking…' : message.content,
-              style: theme.textTheme.bodyMedium,
-            ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: MorganSurface(
+          color: p.surfaceMuted,
+          elevated: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  MorganLogo(size: 20),
+                  const SizedBox(width: MorganSpace.xs),
+                  Text('Morgan', style: theme.textTheme.labelMedium),
+                  const Spacer(),
+                  if (message.confidence != null) _ConfidenceBadge(confidence: message.confidence!),
+                ],
+              ),
+              const SizedBox(height: MorganSpace.sm),
+              if (message.content.isEmpty && message.isStreaming)
+                const MorganTypingIndicator()
+              else
+                _FinanceRichText(
+                  text: message.content,
+                  style: theme.textTheme.bodyMedium,
+                ),
             if (message.citations.isNotEmpty) ...[
               const SizedBox(height: MorganSpace.md),
               Text('SOURCES', style: theme.textTheme.labelSmall),
@@ -714,10 +781,81 @@ class _AssistantBubble extends StatelessWidget {
                     .toList(),
               ),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _ChatErrorBubble extends StatelessWidget {
+  const _ChatErrorBubble({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.morgan;
+    final theme = Theme.of(context);
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: MorganSurface(
+          color: p.lossMuted,
+          elevated: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Morgan could not answer right now.',
+                style: theme.textTheme.bodyMedium?.copyWith(color: p.loss),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: onRetry,
+                  child: const Text('Retry'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FinanceRichText extends StatelessWidget {
+  const _FinanceRichText({required this.text, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  static final _financePattern = RegExp(r'(\$[\d,]+(?:\.\d{2})?|-?\d+(?:\.\d+)?%)');
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = style ?? DefaultTextStyle.of(context).style;
+    final monoStyle = baseStyle.copyWith(fontFamily: 'monospace');
+
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final match in _financePattern.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start), style: baseStyle));
+      }
+      spans.add(TextSpan(text: match.group(0), style: monoStyle));
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor), style: baseStyle));
+    }
+
+    return Text.rich(TextSpan(children: spans.isEmpty ? [TextSpan(text: text, style: baseStyle)] : spans));
   }
 }
 

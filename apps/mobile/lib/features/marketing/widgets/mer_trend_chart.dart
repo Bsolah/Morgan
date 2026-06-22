@@ -5,6 +5,7 @@ import '../../../core/marketing/marketing_repository.dart';
 import '../../../core/metrics/metrics_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_chart_frame.dart';
 
 class MerTrendChart extends StatefulWidget {
   const MerTrendChart({
@@ -52,37 +53,35 @@ class _MerTrendChartState extends State<MerTrendChart> {
     }
 
     final selected = _selectedIndex != null ? widget.points[_selectedIndex!] : null;
+    final summary = selected != null
+        ? '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
+            'MER ${formatMerRatio(selected.mer)} · Spend ${money.format(selected.adSpend)}'
+        : _defaultSummary(money);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (selected != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: MorganSpace.sm),
-            child: Text(
-              '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
-              'MER ${formatMerRatio(selected.mer)} · Spend ${money.format(selected.adSpend)}',
-              style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-            ),
-          ),
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
-                child: CustomPaint(
-                  size: constraints.biggest,
-                  painter: _MerTrendPainter(
-                    points: widget.points,
-                    selectedIndex: _selectedIndex,
-                    spendColor: p.textMuted,
-                    merColor: p.accent,
+        MorganChartFrame(
+          summary: summary,
+          chart: SizedBox(
+            height: 180,
+            width: double.infinity,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return GestureDetector(
+                  onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
+                  child: CustomPaint(
+                    size: constraints.biggest,
+                    painter: _MerTrendPainter(
+                      points: widget.points,
+                      selectedIndex: _selectedIndex,
+                      spendColor: p.textMuted,
+                      merColor: p.accent,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: MorganSpace.sm),
@@ -95,6 +94,16 @@ class _MerTrendChartState extends State<MerTrendChart> {
         ),
       ],
     );
+  }
+
+  String _defaultSummary(NumberFormat money) {
+    if (widget.points.isEmpty) {
+      return '7-day MER trend. No data yet.';
+    }
+    final last = widget.points.last;
+    final day = DateFormat('MMM d').format(DateTime.parse('${last.day}T12:00:00Z'));
+    return '7-day MER trend through $day. Latest MER ${formatMerRatio(last.mer)}, '
+        'ad spend ${money.format(last.adSpend)}. Tap the chart to inspect each day.';
   }
 }
 

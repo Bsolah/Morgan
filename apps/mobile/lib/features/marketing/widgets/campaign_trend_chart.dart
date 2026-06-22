@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/marketing/marketing_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_chart_frame.dart';
 
 class CampaignTrendChart extends StatefulWidget {
   const CampaignTrendChart({
@@ -40,7 +41,7 @@ class _CampaignTrendChartState extends State<CampaignTrendChart> {
 
     if (widget.points.every((point) => point.adSpend == 0)) {
       return SizedBox(
-        height: 180,
+        height: 120,
         child: Center(
           child: Text(
             'Spend trend appears after campaign data syncs.',
@@ -51,38 +52,36 @@ class _CampaignTrendChartState extends State<CampaignTrendChart> {
     }
 
     final selected = _selectedIndex != null ? widget.points[_selectedIndex!] : null;
+    final summary = selected != null
+        ? '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
+            'Spend ${money.format(selected.adSpend)} · POAS ${formatMarketingRatio(selected.poas)}'
+        : _defaultSummary(money);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (selected != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: MorganSpace.sm),
-            child: Text(
-              '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
-              'Spend ${money.format(selected.adSpend)} · POAS ${formatMarketingRatio(selected.poas)}',
-              style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-            ),
-          ),
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
-                child: CustomPaint(
-                  size: constraints.biggest,
-                  painter: _CampaignTrendPainter(
-                    points: widget.points,
-                    selectedIndex: _selectedIndex,
-                    spendColor: p.textMuted,
-                    poasColor: p.accent,
-                    poasThresholdColor: p.loss,
+        MorganChartFrame(
+          summary: summary,
+          chart: SizedBox(
+            height: 120,
+            width: double.infinity,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return GestureDetector(
+                  onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
+                  child: CustomPaint(
+                    size: constraints.biggest,
+                    painter: _CampaignTrendPainter(
+                      points: widget.points,
+                      selectedIndex: _selectedIndex,
+                      spendColor: p.textMuted,
+                      poasColor: p.accent,
+                      poasThresholdColor: p.loss,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: MorganSpace.sm),
@@ -95,6 +94,16 @@ class _CampaignTrendChartState extends State<CampaignTrendChart> {
         ),
       ],
     );
+  }
+
+  String _defaultSummary(NumberFormat money) {
+    if (widget.points.isEmpty) {
+      return '${widget.trendDays}-day spend and POAS trend. No data yet.';
+    }
+    final last = widget.points.last;
+    final day = DateFormat('MMM d').format(DateTime.parse('${last.day}T12:00:00Z'));
+    return '${widget.trendDays}-day spend and POAS trend through $day. Latest spend ${money.format(last.adSpend)}, '
+        'POAS ${formatMarketingRatio(last.poas)}. Tap the chart to inspect each day.';
   }
 }
 

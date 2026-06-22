@@ -76,5 +76,6 @@ describe("inventory-health", () => {
 
     expect(summary.stockout_risk_count).toBeGreaterThanOrEqual(1);
     expect(summary.overstock_count).toBeGreaterThanOrEqual(1);
+    expect(summary.total_sku_count).toBe(2);
   });
 });

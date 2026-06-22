@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/alerts/alert.dart';
+import '../../../core/alerts/alert_visuals.dart';
 import '../../../core/alerts/alerts_providers.dart';
 import '../../../core/alerts/alerts_repository.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/morgan_colors.dart';
+import '../../../core/haptics/morgan_haptics.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_detail_app_bar.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
@@ -24,7 +27,7 @@ class AlertDetailScreen extends ConsumerStatefulWidget {
 class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
   bool _markingRead = false;
 
-  Future<void> _markRead() async {
+  Future<void> _markRead({bool popAfter = false, bool wasUnread = true}) async {
     setState(() => _markingRead = true);
     try {
       final session = await ref.read(authSessionProvider.future);
@@ -39,6 +42,8 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
       }
       ref.invalidate(alertsProvider);
       ref.invalidate(alertDetailProvider(widget.alertId));
+      if (wasUnread) MorganHaptics.lightImpact();
+      if (popAfter && mounted) context.pop();
     } finally {
       if (mounted) setState(() => _markingRead = false);
     }
@@ -46,10 +51,33 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
 
   void _openLink(String? path) {
     if (path == null || path.isEmpty) return;
-    context.go(path);
+    context.push(path);
   }
 
-  List<Widget> _detailFields(Alert item, TextTheme theme) {
+  String? _primaryRoute(Alert item) {
+    if (item.links.recommendation != null && item.links.recommendation!.isNotEmpty) {
+      return item.links.recommendation;
+    }
+    return switch (item.type) {
+      AlertType.adWaste => item.links.marketingOverview ?? '/marketing',
+      AlertType.stockoutRisk => item.links.recommendation ?? '/inventory',
+      AlertType.cashCrunch => '/cash',
+      AlertType.marginDrop => '/profit',
+      AlertType.refundSpike => item.links.chat ?? '/chat',
+      AlertType.profitLeak => item.links.recommendation ?? '/recommendations',
+    };
+  }
+
+  String _primaryLabel(Alert item) => switch (item.type) {
+        AlertType.adWaste => 'View Marketing Overview',
+        AlertType.stockoutRisk => 'View reorder recommendation',
+        AlertType.cashCrunch => 'Review cash runway',
+        AlertType.marginDrop => 'Review profit dashboard',
+        AlertType.refundSpike => 'Ask Morgan why',
+        AlertType.profitLeak => 'View recommendation',
+      };
+
+  List<Widget> _detailFields(Alert item, TextTheme theme, MorganPalette p) {
     if (item.type == AlertType.adWaste) {
       final snapshot = item.metricSnapshot;
       final campaignName = snapshot?['campaign_name'] as String? ?? item.title;
@@ -57,31 +85,19 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
       final poas = snapshot?['poas_7d'];
 
       return [
-        Text('Campaign', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(campaignName, style: theme.bodyLarge),
-        const SizedBox(height: MorganSpace.md),
-        Text('7-day spend', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(
-          spend is num ? '\$${spend.round()}' : item.magnitude,
-          style: theme.bodyLarge,
+        _DetailRow(label: 'Campaign', value: campaignName, theme: theme),
+        _DetailRow(
+          label: '7-day spend',
+          value: spend is num ? '\$${spend.round()}' : item.magnitude,
+          theme: theme,
         ),
-        const SizedBox(height: MorganSpace.md),
-        Text('POAS', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(
-          poas is num ? poas.toStringAsFixed(2) : item.magnitude,
-          style: theme.bodyLarge,
+        _DetailRow(
+          label: 'POAS',
+          value: poas is num ? poas.toStringAsFixed(2) : item.magnitude,
+          theme: theme,
         ),
-        const SizedBox(height: MorganSpace.md),
-        Text('Suggested action', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(item.topDriver, style: theme.bodyLarge),
-        const SizedBox(height: MorganSpace.md),
-        Text('Summary', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(item.body, style: theme.bodyMedium),
+        _DetailRow(label: 'Suggested action', value: item.topDriver, theme: theme),
+        _DetailRow(label: 'Summary', value: item.body, theme: theme, multiline: true),
       ];
     }
 
@@ -92,26 +108,15 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
       final leadTime = snapshot?['lead_time_days'];
 
       return [
-        Text('SKU', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(skuName, style: theme.bodyLarge),
-        const SizedBox(height: MorganSpace.md),
-        Text('Days remaining', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(
-          days is num ? '~${days.round()} days' : item.magnitude,
-          style: theme.bodyLarge,
+        _DetailRow(label: 'SKU', value: skuName, theme: theme),
+        _DetailRow(
+          label: 'Days remaining',
+          value: days is num ? '~${days.round()} days' : item.magnitude,
+          theme: theme,
         ),
-        if (leadTime is num) ...[
-          const SizedBox(height: MorganSpace.md),
-          Text('Supplier lead time', style: theme.labelLarge),
-          const SizedBox(height: MorganSpace.xxs),
-          Text('${leadTime.round()} days', style: theme.bodyLarge),
-        ],
-        const SizedBox(height: MorganSpace.md),
-        Text('Summary', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(item.body, style: theme.bodyMedium),
+        if (leadTime is num)
+          _DetailRow(label: 'Supplier lead time', value: '${leadTime.round()} days', theme: theme),
+        _DetailRow(label: 'Summary', value: item.body, theme: theme, multiline: true),
       ];
     }
 
@@ -122,26 +127,17 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
       final actions = snapshot?['suggested_actions'];
 
       return [
-        Text('Balance', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(
-          balance is num ? '\$${balance.round()}' : item.magnitude,
-          style: theme.bodyLarge,
+        _DetailRow(
+          label: 'Balance',
+          value: balance is num ? '\$${balance.round()}' : item.magnitude,
+          theme: theme,
         ),
-        const SizedBox(height: MorganSpace.md),
-        Text('Daily burn', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(
-          burn is num ? '\$${burn.round()}/day' : item.magnitude,
-          style: theme.bodyLarge,
+        _DetailRow(
+          label: 'Daily burn',
+          value: burn is num ? '\$${burn.round()}/day' : item.magnitude,
+          theme: theme,
         ),
-        const SizedBox(height: MorganSpace.md),
-        Text('Runway', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(item.magnitude, style: theme.bodyLarge),
-        const SizedBox(height: MorganSpace.md),
-        Text('Suggested actions', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
+        _DetailRow(label: 'Runway', value: item.magnitude, theme: theme),
         if (actions is List)
           ...actions.map(
             (action) => Padding(
@@ -150,63 +146,15 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
             ),
           )
         else
-          Text(item.topDriver, style: theme.bodyMedium),
-        const SizedBox(height: MorganSpace.md),
-        Text('Summary', style: theme.labelLarge),
-        const SizedBox(height: MorganSpace.xxs),
-        Text(item.body, style: theme.bodyMedium),
+          _DetailRow(label: 'Suggested action', value: item.topDriver, theme: theme),
+        _DetailRow(label: 'Summary', value: item.body, theme: theme, multiline: true),
       ];
     }
 
     return [
-      Text('Magnitude', style: theme.labelLarge),
-      const SizedBox(height: MorganSpace.xxs),
-      Text(item.magnitude, style: theme.bodyLarge),
-      const SizedBox(height: MorganSpace.md),
-      Text('Top driver', style: theme.labelLarge),
-      const SizedBox(height: MorganSpace.xxs),
-      Text(item.topDriver, style: theme.bodyLarge),
-      const SizedBox(height: MorganSpace.md),
-      Text('Summary', style: theme.labelLarge),
-      const SizedBox(height: MorganSpace.xxs),
-      Text(item.body, style: theme.bodyMedium),
-    ];
-  }
-
-  List<Widget> _actionButtons(Alert item) {
-    if (item.type == AlertType.adWaste) {
-      return [
-        MorganPrimaryButton(
-          label: 'View Marketing Overview',
-          onPressed: () => _openLink(item.links.marketingOverview),
-        ),
-        const SizedBox(height: MorganSpace.sm),
-        OutlinedButton(
-          onPressed: () => _openLink(item.links.recommendation),
-          child: const Text('View recommendation'),
-        ),
-      ];
-    }
-
-    if (item.type == AlertType.stockoutRisk) {
-      return [
-        MorganPrimaryButton(
-          label: 'View reorder recommendation',
-          onPressed: () => _openLink(item.links.recommendation),
-        ),
-      ];
-    }
-
-    return [
-      MorganPrimaryButton(
-        label: 'View daily brief',
-        onPressed: () => _openLink(item.links.brief),
-      ),
-      const SizedBox(height: MorganSpace.sm),
-      OutlinedButton(
-        onPressed: () => _openLink(item.links.chat),
-        child: const Text('Ask Morgan why'),
-      ),
+      _DetailRow(label: 'Magnitude', value: item.magnitude, theme: theme),
+      _DetailRow(label: 'Top driver', value: item.topDriver, theme: theme),
+      _DetailRow(label: 'Summary', value: item.body, theme: theme, multiline: true),
     ];
   }
 
@@ -218,22 +166,15 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
 
     return Scaffold(
       backgroundColor: p.background,
-      appBar: AppBar(
-        backgroundColor: p.background,
-        elevation: 0,
-        title: const Text('Alert'),
-      ),
+      appBar: const MorganDetailAppBar(title: 'Alert', fallbackRoute: '/alerts'),
       body: alert.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
           child: Text('Could not load alert', style: theme.textTheme.bodyLarge),
         ),
         data: (item) {
-          final (Color accent, Color bg, IconData icon) = switch (item.severity) {
-            AlertSeverity.critical => (p.loss, p.lossMuted, Icons.error_outline_rounded),
-            AlertSeverity.warning => (p.warning, p.goldMuted, Icons.warning_amber_rounded),
-            AlertSeverity.info => (p.accent, p.accentMuted, Icons.info_outline_rounded),
-          };
+          final (stripeColor, stripeBg) = alertSeverityAccent(p, item.severity);
+          final primaryRoute = _primaryRoute(item);
 
           return Column(
             children: [
@@ -243,75 +184,171 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
                     MorganSpace.screenH,
                     MorganSpace.sm,
                     MorganSpace.screenH,
-                    MorganSpace.huge,
+                    MorganSpace.lg,
                   ),
                   children: [
                     MorganSurface(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: bg,
-                              borderRadius: BorderRadius.circular(MorganRadius.xs),
-                            ),
-                            child: Icon(icon, size: 20, color: accent),
-                          ),
-                          const SizedBox(width: MorganSpace.md),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(item.title, style: theme.textTheme.titleLarge),
-                                const SizedBox(height: MorganSpace.xxs),
-                                Text(
-                                  formatAlertRelativeTime(item.createdAt),
-                                  style: theme.textTheme.bodySmall,
+                      padding: EdgeInsets.zero,
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              width: 4,
+                              decoration: BoxDecoration(
+                                color: stripeColor,
+                                borderRadius: const BorderRadius.horizontal(
+                                  left: Radius.circular(MorganRadius.md),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(MorganSpace.card),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: stripeBg,
+                                            borderRadius: BorderRadius.circular(MorganRadius.xs),
+                                          ),
+                                          child: Icon(
+                                            alertTypeIcon(item.type),
+                                            size: 20,
+                                            color: stripeColor,
+                                          ),
+                                        ),
+                                        const SizedBox(width: MorganSpace.sm),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                alertTypeLabel(item.type),
+                                                style: theme.textTheme.labelMedium?.copyWith(
+                                                  color: stripeColor,
+                                                ),
+                                              ),
+                                              Text(item.title, style: theme.textTheme.titleLarge),
+                                              Text(
+                                                formatAlertRelativeTime(item.createdAt),
+                                                style: theme.textTheme.bodySmall,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: MorganSpace.md),
+                                    Text(
+                                      item.magnitude,
+                                      style: theme.textTheme.headlineSmall?.copyWith(
+                                        color: stripeColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: MorganSpace.sm),
+                                    Text(
+                                      item.topDriver,
+                                      style: theme.textTheme.titleSmall,
+                                    ),
+                                    const SizedBox(height: MorganSpace.sm),
+                                    Text(
+                                      item.body,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    if (primaryRoute != null) ...[
+                                      const SizedBox(height: MorganSpace.md),
+                                      MorganPrimaryButton(
+                                        label: _primaryLabel(item),
+                                        onPressed: () => _openLink(primaryRoute),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: MorganSpace.md),
                     MorganSurface(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: _detailFields(item, theme.textTheme),
+                      padding: EdgeInsets.zero,
+                      child: Theme(
+                        data: theme.copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(horizontal: MorganSpace.card),
+                          title: Text('Details', style: theme.textTheme.titleSmall),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                MorganSpace.card,
+                                0,
+                                MorganSpace.card,
+                                MorganSpace.card,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: _detailFields(item, theme.textTheme, p),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   MorganSpace.screenH,
                   MorganSpace.sm,
                   MorganSpace.screenH,
-                  MorganSpace.lg,
+                  MorganSpace.lg + MediaQuery.paddingOf(context).bottom,
                 ),
                 decoration: BoxDecoration(
                   color: p.background,
                   border: Border(top: BorderSide(color: p.borderSubtle)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Row(
                   children: [
-                    ..._actionButtons(item),
-                    if (item.isUnread) ...[
-                      const SizedBox(height: MorganSpace.sm),
-                      TextButton(
-                        onPressed: _markingRead ? null : _markRead,
-                        child: _markingRead
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Mark as read'),
+                    if (item.isUnread)
+                      Expanded(
+                        child: TextButton(
+                          onPressed: _markingRead ? null : () => _markRead(),
+                          child: _markingRead
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Mark read'),
+                        ),
+                      ),
+                    if (item.isUnread) const SizedBox(width: MorganSpace.sm),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: _markingRead
+                            ? null
+                            : () => _markRead(popAfter: true),
+                        child: const Text('Dismiss'),
+                      ),
+                    ),
+                    if (item.links.chat != null) ...[
+                      const SizedBox(width: MorganSpace.sm),
+                      Expanded(
+                        flex: 2,
+                        child: OutlinedButton(
+                          onPressed: () => _openLink(item.links.chat),
+                          child: const Text('Ask Morgan'),
+                        ),
                       ),
                     ],
                   ],
@@ -320,6 +357,38 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+    this.multiline = false,
+  });
+
+  final String label;
+  final String value;
+  final TextTheme theme;
+  final bool multiline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: MorganSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.labelLarge),
+          const SizedBox(height: MorganSpace.xxs),
+          Text(
+            value,
+            style: multiline ? theme.bodyMedium : theme.bodyLarge,
+          ),
+        ],
       ),
     );
   }

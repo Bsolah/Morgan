@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/cash/cash_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_chart_frame.dart';
 
 class CashFlowChart extends StatefulWidget {
   const CashFlowChart({
@@ -51,38 +52,36 @@ class _CashFlowChartState extends State<CashFlowChart> {
     }
 
     final selected = _selectedIndex != null ? widget.points[_selectedIndex!] : null;
+    final summary = selected != null
+        ? '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
+            'In ${money.format(selected.inflowsUsd)} · Out ${money.format(selected.outflowsUsd)}'
+        : _defaultSummary(money);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (selected != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: MorganSpace.sm),
-            child: Text(
-              '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
-              'In ${money.format(selected.inflowsUsd)} · Out ${money.format(selected.outflowsUsd)}',
-              style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-            ),
-          ),
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
-                child: CustomPaint(
-                  size: constraints.biggest,
-                  painter: _CashFlowPainter(
-                    points: widget.points,
-                    selectedIndex: _selectedIndex,
-                    inflowColor: p.profit,
-                    outflowColor: p.loss,
-                    mutedColor: p.textMuted,
+        MorganChartFrame(
+          summary: summary,
+          chart: SizedBox(
+            height: 180,
+            width: double.infinity,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return GestureDetector(
+                  onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
+                  child: CustomPaint(
+                    size: constraints.biggest,
+                    painter: _CashFlowPainter(
+                      points: widget.points,
+                      selectedIndex: _selectedIndex,
+                      inflowColor: p.profit,
+                      outflowColor: p.loss,
+                      mutedColor: p.textMuted,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: MorganSpace.sm),
@@ -95,6 +94,13 @@ class _CashFlowChartState extends State<CashFlowChart> {
         ),
       ],
     );
+  }
+
+  String _defaultSummary(NumberFormat money) {
+    final totalIn = widget.points.fold<double>(0, (sum, point) => sum + point.inflowsUsd);
+    final totalOut = widget.points.fold<double>(0, (sum, point) => sum + point.outflowsUsd);
+    return '${widget.windowDays}-day cash flow. Total inflows ${money.format(totalIn)}, '
+        'outflows ${money.format(totalOut)}. Tap the chart to inspect each day.';
   }
 }
 

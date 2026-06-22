@@ -36,16 +36,25 @@ abstract final class MorganTypography {
         height: 1.25,
         color: p.textPrimary,
       ),
+      headlineSmall: base.headlineSmall?.copyWith(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.3,
+        height: 1.25,
+        color: p.textPrimary,
+      ),
       titleLarge: base.titleLarge?.copyWith(
-        fontSize: 18,
+        fontSize: 22,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
+        height: 1.3,
         color: p.textPrimary,
       ),
       titleMedium: base.titleMedium?.copyWith(
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.1,
+        height: 1.35,
         color: p.textPrimary,
       ),
       titleSmall: base.titleSmall?.copyWith(
@@ -95,6 +104,7 @@ abstract final class MorganTypography {
     );
   }
 
+  /// Hero metric values — 28px default, up to 32px for dashboard heroes.
   static TextStyle metricValue(MorganPalette p, {double size = 28}) => GoogleFonts.jetBrainsMono(
         fontSize: size,
         fontWeight: FontWeight.w600,

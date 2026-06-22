@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/notifications/notification_prefs.dart';
 import '../../../core/notifications/notifications_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
-import '../../../shared/widgets/morgan_section_header.dart';
+import '../../../shared/widgets/morgan_detail_app_bar.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
 class NotificationSettingsScreen extends ConsumerStatefulWidget {
@@ -67,7 +66,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
       if (!mounted) return;
       await _loadPrefs();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save notification preferences')),
+        const SnackBar(content: Text('Could not save notification preferences. Try again.')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -114,159 +113,154 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
 
     return Scaffold(
       backgroundColor: p.background,
-      appBar: AppBar(
-        backgroundColor: p.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: p.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text('Notifications', style: theme.textTheme.titleMedium),
-      ),
+      appBar: const MorganDetailAppBar(title: 'Notifications', fallbackRoute: '/settings'),
       body: !_loaded || prefs == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: ListView(
-                padding: const EdgeInsets.only(bottom: MorganSpace.huge),
+                padding: const EdgeInsets.fromLTRB(
+                  MorganSpace.screenH,
+                  MorganSpace.md,
+                  MorganSpace.screenH,
+                  MorganSpace.huge,
+                ),
                 children: [
-                  const MorganScreenHeader(
-                    title: 'Notification preferences',
-                    subtitle: 'Changes apply immediately to new notifications',
+                  Text(
+                    'Control when Morgan notifies you',
+                    style: theme.textTheme.headlineSmall,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                  const SizedBox(height: MorganSpace.sm),
+                  Text(
+                    'Changes apply immediately to new notifications.',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  Text('PUSH NOTIFICATIONS', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('PUSH NOTIFICATIONS', style: theme.textTheme.labelMedium),
-                        const SizedBox(height: MorganSpace.sm),
-                        MorganSurface(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              _PrefSwitch(
-                                title: 'Daily brief',
-                                subtitle: 'When today\'s brief is ready at 6:00 AM local',
-                                value: prefs.pushDailyBrief,
-                                enabled: !_saving,
-                                onChanged: (value) => _savePatch(
-                                  {'push_daily_brief': value},
-                                  prefs.copyWith(pushDailyBrief: value),
-                                ),
-                              ),
-                              Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                              _PrefSwitch(
-                                title: 'Alerts (warning)',
-                                subtitle: 'Margin drops, ad waste, stockout risk, and similar',
-                                value: prefs.pushWarnings,
-                                enabled: !_saving,
-                                onChanged: (value) => _savePatch(
-                                  {'push_warnings': value},
-                                  prefs.copyWith(pushWarnings: value),
-                                ),
-                              ),
-                              Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                              _PrefSwitch(
-                                title: 'Alerts (critical)',
-                                subtitle: 'Urgent issues that need immediate attention',
-                                value: prefs.pushCritical,
-                                enabled: !_saving,
-                                onChanged: (value) => _savePatch(
-                                  {'push_critical': value},
-                                  prefs.copyWith(pushCritical: value),
-                                ),
-                              ),
-                            ],
+                        _PrefSwitch(
+                          title: 'Daily brief',
+                          subtitle: 'When today\'s brief is ready at 6:00 AM local',
+                          value: prefs.pushDailyBrief,
+                          enabled: !_saving,
+                          onChanged: (value) => _savePatch(
+                            {'push_daily_brief': value},
+                            prefs.copyWith(pushDailyBrief: value),
                           ),
                         ),
-                        const SizedBox(height: MorganSpace.xl),
-                        Text('EMAIL', style: theme.textTheme.labelMedium),
-                        const SizedBox(height: MorganSpace.sm),
-                        MorganSurface(
-                          padding: EdgeInsets.zero,
-                          child: _PrefSwitch(
-                            title: 'Weekly email digest',
-                            subtitle: 'Summary of the week sent every Monday morning',
-                            value: prefs.weeklyEmailDigest,
-                            enabled: !_saving,
-                            onChanged: (value) => _savePatch(
-                              {'weekly_email_digest': value},
-                              prefs.copyWith(weeklyEmailDigest: value),
-                            ),
+                        Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                        _PrefSwitch(
+                          title: 'Alerts (warning)',
+                          subtitle: 'Margin drops, ad waste, stockout risk, and similar',
+                          value: prefs.pushWarnings,
+                          enabled: !_saving,
+                          onChanged: (value) => _savePatch(
+                            {'push_warnings': value},
+                            prefs.copyWith(pushWarnings: value),
                           ),
                         ),
-                        const SizedBox(height: MorganSpace.xl),
-                        Text('QUIET HOURS', style: theme.textTheme.labelMedium),
-                        const SizedBox(height: MorganSpace.sm),
-                        MorganSurface(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              SwitchListTile(
-                                title: Text('Enable quiet hours', style: theme.textTheme.titleSmall),
-                                subtitle: Text(
-                                  prefs.quietHoursEnabled ? prefs.quietHoursSummary : 'Off',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                value: prefs.quietHoursEnabled,
-                                onChanged: _saving
-                                    ? null
-                                    : (value) => _savePatch(
-                                          {'quiet_hours_enabled': value},
-                                          prefs.copyWith(quietHoursEnabled: value),
-                                        ),
-                              ),
-                              if (prefs.quietHoursEnabled) ...[
-                                Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                                ListTile(
-                                  title: Text('Start time', style: theme.textTheme.titleSmall),
-                                  subtitle: Text(
-                                    NotificationPrefs.formatHourLabel(prefs.quietHoursStart),
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                  trailing: Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
-                                  onTap: _saving
-                                      ? null
-                                      : () => _pickQuietHour(
-                                            title: 'Quiet hours start',
-                                            current: prefs.quietHoursStart,
-                                            onSelected: (hour) => _savePatch(
-                                              {'quiet_hours_start': hour},
-                                              prefs.copyWith(quietHoursStart: hour),
-                                            ),
-                                          ),
-                                ),
-                                Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                                ListTile(
-                                  title: Text('End time', style: theme.textTheme.titleSmall),
-                                  subtitle: Text(
-                                    NotificationPrefs.formatHourLabel(prefs.quietHoursEnd),
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                  trailing: Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
-                                  onTap: _saving
-                                      ? null
-                                      : () => _pickQuietHour(
-                                            title: 'Quiet hours end',
-                                            current: prefs.quietHoursEnd,
-                                            onSelected: (hour) => _savePatch(
-                                              {'quiet_hours_end': hour},
-                                              prefs.copyWith(quietHoursEnd: hour),
-                                            ),
-                                          ),
-                                ),
-                              ],
-                            ],
+                        Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                        _PrefSwitch(
+                          title: 'Alerts (critical)',
+                          subtitle: 'Urgent issues that need immediate attention',
+                          value: prefs.pushCritical,
+                          enabled: !_saving,
+                          onChanged: (value) => _savePatch(
+                            {'push_critical': value},
+                            prefs.copyWith(pushCritical: value),
                           ),
-                        ),
-                        const SizedBox(height: MorganSpace.md),
-                        Text(
-                          'Critical cash runway alerts can still notify you during quiet hours so you '
-                          'don\'t miss urgent cash issues.',
-                          style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  Text('EMAIL', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: _PrefSwitch(
+                      title: 'Weekly email digest',
+                      subtitle: 'Summary of the week sent every Monday morning',
+                      value: prefs.weeklyEmailDigest,
+                      enabled: !_saving,
+                      onChanged: (value) => _savePatch(
+                        {'weekly_email_digest': value},
+                        prefs.copyWith(weeklyEmailDigest: value),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
+                  Text('QUIET HOURS', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          title: Text('Enable quiet hours', style: theme.textTheme.titleSmall),
+                          subtitle: Text(
+                            prefs.quietHoursEnabled ? prefs.quietHoursSummary : 'Off',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          value: prefs.quietHoursEnabled,
+                          onChanged: _saving
+                              ? null
+                              : (value) => _savePatch(
+                                    {'quiet_hours_enabled': value},
+                                    prefs.copyWith(quietHoursEnabled: value),
+                                  ),
+                        ),
+                        if (prefs.quietHoursEnabled) ...[
+                          Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                          ListTile(
+                            title: Text('Start time', style: theme.textTheme.titleSmall),
+                            subtitle: Text(
+                              NotificationPrefs.formatHourLabel(prefs.quietHoursStart),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            trailing: Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
+                            onTap: _saving
+                                ? null
+                                : () => _pickQuietHour(
+                                      title: 'Quiet hours start',
+                                      current: prefs.quietHoursStart,
+                                      onSelected: (hour) => _savePatch(
+                                        {'quiet_hours_start': hour},
+                                        prefs.copyWith(quietHoursStart: hour),
+                                      ),
+                                    ),
+                          ),
+                          Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                          ListTile(
+                            title: Text('End time', style: theme.textTheme.titleSmall),
+                            subtitle: Text(
+                              NotificationPrefs.formatHourLabel(prefs.quietHoursEnd),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            trailing: Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
+                            onTap: _saving
+                                ? null
+                                : () => _pickQuietHour(
+                                      title: 'Quiet hours end',
+                                      current: prefs.quietHoursEnd,
+                                      onSelected: (hour) => _savePatch(
+                                        {'quiet_hours_end': hour},
+                                        prefs.copyWith(quietHoursEnd: hour),
+                                      ),
+                                    ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.md),
+                  Text(
+                    'Critical cash runway alerts can still notify you during quiet hours so you '
+                    'don\'t miss urgent cash issues.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
                   ),
                 ],
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../alerts/alerts_providers.dart';
+import '../brief/brief_formatters.dart';
 import '../brief/brief_repository.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
@@ -12,24 +13,42 @@ const _fallbackStarters = [
 ];
 
 final chatStartersProvider = FutureProvider<List<ChatStarter>>((ref) async {
-  ref.watch(dailyBriefProvider);
+  final brief = ref.watch(dailyBriefProvider).valueOrNull;
   ref.watch(alertsProvider);
+
+  List<ChatStarter> briefStarters = [];
+  final topAction = brief?.topAction;
+  if (brief?.hasBrief == true && topAction != null) {
+    briefStarters = [
+      ChatStarter(
+        label: 'Today\'s action',
+        message: topActionChatPrompt(topAction),
+      ),
+    ];
+  }
 
   try {
     final starters = await ref.read(chatRepositoryProvider).getStarters();
-    if (starters.length >= 3) return starters;
-    return _mergeWithFallback(starters);
+    return _mergeStarters([...briefStarters, ...starters]);
   } catch (_) {
-    return _fallbackStarters;
+    return _mergeStarters([...briefStarters, ..._fallbackStarters]);
   }
 });
 
-List<ChatStarter> _mergeWithFallback(List<ChatStarter> starters) {
-  final merged = [...starters];
-  final seen = merged.map((starter) => starter.message.trim().toLowerCase()).toSet();
+List<ChatStarter> _mergeStarters(List<ChatStarter> starters) {
+  final merged = <ChatStarter>[];
+  final seen = <String>{};
+
+  for (final starter in starters) {
+    final key = starter.message.trim().toLowerCase();
+    if (seen.contains(key)) continue;
+    seen.add(key);
+    merged.add(starter);
+    if (merged.length >= 5) break;
+  }
 
   for (final fallback in _fallbackStarters) {
-    if (merged.length >= 3) break;
+    if (merged.length >= 5) break;
     final key = fallback.message.trim().toLowerCase();
     if (seen.contains(key)) continue;
     seen.add(key);

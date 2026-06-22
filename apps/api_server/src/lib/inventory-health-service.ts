@@ -2,7 +2,7 @@ import type { Database } from "@morgan/db";
 import {
   buildSkuInventoryPlanning,
   INVENTORY_HEALTH_WINDOW_DAYS,
-  rankSkusForInventoryHealth,
+  rankSkusByStockoutRisk,
   summarizeInventoryHealth,
   type SkuInventoryPlanning,
 } from "@morgan/integrations";
@@ -27,6 +27,8 @@ export type InventoryHealthView = {
   stockout_risk_count: number;
   overstock_count: number;
   overstock_value_usd: number;
+  total_sku_count: number;
+  avg_days_of_cover: number | null;
   skus: SkuInventoryPlanning[];
 };
 
@@ -74,6 +76,7 @@ async function buildSkuHealthList(
         demand_forecast: demandForecasts.get(summary.sku) ?? null,
         revenue_rank: index + 1,
         avg_daily_net_outflow: avgDailyNetOutflow,
+        low_confidence: summary.low_confidence,
       },
       referenceDay,
       leadTimeDays,
@@ -97,8 +100,8 @@ export async function getInventoryHealth(
 ): Promise<InventoryHealthView> {
   const referenceDay = new Date().toISOString().slice(0, 10);
   const skuHealth = await buildSkuHealthList(db, storeId, windowDays, referenceDay);
-  const ranked = rankSkusForInventoryHealth(skuHealth).slice(0, 10);
   const summary = summarizeInventoryHealth(skuHealth);
+  const ranked = rankSkusByStockoutRisk(skuHealth).slice(0, 10);
 
   return {
     store_id: storeId,
@@ -107,6 +110,8 @@ export async function getInventoryHealth(
     stockout_risk_count: summary.stockout_risk_count,
     overstock_count: summary.overstock_count,
     overstock_value_usd: summary.overstock_value_usd,
+    total_sku_count: summary.total_sku_count,
+    avg_days_of_cover: summary.avg_days_of_cover,
     skus: ranked,
   };
 }
@@ -158,6 +163,7 @@ export async function getInventorySkuDetail(
       gross_revenue: summary.gross_revenue,
       unit_cost: unitCostBySku.get(summary.sku) ?? null,
       demand_forecast: demandForecasts.get(summary.sku) ?? null,
+      low_confidence: summary.low_confidence,
     },
     referenceDay,
     leadTimeDays,

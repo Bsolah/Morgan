@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/morgan_colors.dart';
 
-/// Morgan logomark — modern "M" with upward insight stroke.
+/// Morgan logomark — vector `CustomPaint` (no raster assets; US-UX-15-06).
 class MorganLogo extends StatelessWidget {
   const MorganLogo({super.key, this.size = 40, this.showWordmark = false});
 
@@ -13,7 +13,7 @@ class MorganLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.morgan;
 
-    return Row(
+    final mark = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
@@ -41,6 +41,11 @@ class MorganLogo extends StatelessWidget {
         ],
       ],
     );
+
+    if (showWordmark) {
+      return Semantics(label: 'Morgan', child: mark);
+    }
+    return ExcludeSemantics(child: mark);
   }
 }
 

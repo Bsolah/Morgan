@@ -10,6 +10,7 @@ void main() {
         rank: 1,
         rankScore: 0.9,
         title: 'Test',
+        body: 'Test body',
         impactLowUsd: 900,
         impactHighUsd: 1100,
         effort: RecommendationEffort.low,

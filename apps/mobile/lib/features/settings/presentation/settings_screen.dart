@@ -14,7 +14,7 @@ import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
-import '../../../shared/widgets/morgan_surface.dart';
+import '../../../shared/widgets/morgan_settings_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -88,110 +88,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: MorganSpace.huge),
           children: [
-            const MorganScreenHeader(
-              title: 'Settings',
-              subtitle: 'Preferences and connections',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MorganSpace.screenH,
+                MorganSpace.md,
+                MorganSpace.screenH,
+                MorganSpace.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    shopDomain?.split('.').first ?? 'Your store',
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                  if (shopDomain != null) ...[
+                    const SizedBox(height: MorganSpace.xxs),
+                    Text(shopDomain!, style: theme.textTheme.bodyMedium),
+                  ],
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('ACCOUNT', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        ListTile(
-                          title: Text('Connected store', style: theme.textTheme.titleSmall),
-                          subtitle: Text(
-                            shopDomain ?? 'Not connected',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                        if (_biometricAvailable) ...[
-                          Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                          SwitchListTile(
-                            title: Text('Biometric unlock', style: theme.textTheme.titleSmall),
-                            subtitle: Text(
-                              'Face ID or fingerprint to open Morgan',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            value: _biometricEnabled ?? false,
-                            onChanged: _biometricEnabled == null ? null : _toggleBiometric,
-                          ),
-                        ],
-                        Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
-                        ListTile(
-                          title: Text('Sign out', style: theme.textTheme.titleSmall?.copyWith(color: p.loss)),
-                          onTap: _logout,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('APPEARANCE', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: MorganThemeMode.values.map((mode) {
-                        final selected = themeMode == mode;
-                        return ListTile(
-                          title: Text(_themeLabel(mode), style: theme.textTheme.titleSmall),
-                          trailing: selected
-                              ? Icon(Icons.check_rounded, color: p.accent, size: 20)
-                              : null,
-                          onTap: () => ref.read(themeModeProvider.notifier).state = mode,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(MorganRadius.md),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('INTEGRATIONS', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
-                    child: _SettingsTile(
-                      title: 'Integrations Hub',
-                      subtitle: 'Meta Ads, Shopify, and more',
-                      onTap: () => context.push('/settings/integrations'),
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('INVENTORY', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
-                    child: _SettingsTile(
-                      title: 'Lead times',
-                      subtitle: ref.watch(inventoryConfigProvider).maybeWhen(
-                            data: (config) => config.subtitle,
-                            orElse: () => '14-day default',
-                          ),
-                      onTap: () => context.push('/settings/inventory'),
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('NOTIFICATIONS', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
-                    child: _SettingsTile(
-                      title: 'Notification preferences',
-                      subtitle: notificationSubtitle,
-                      onTap: () => context.push('/settings/notifications'),
-                    ),
-                  ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('FINANCE', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    padding: EdgeInsets.zero,
+                  MorganSettingsSection(
+                    label: 'FINANCE',
                     child: Column(
                       children: [
                         _SettingsTile(
@@ -223,30 +147,96 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: MorganSpace.xl),
-                  Text('DEVELOPER', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: MorganSpace.sm),
-                  MorganSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppConfig.apiBaseUrl,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontFamily: 'monospace',
-                            color: p.textMuted,
+                  MorganSettingsSection(
+                    label: 'INTEGRATIONS',
+                    child: _SettingsTile(
+                      title: 'Integrations Hub',
+                      subtitle: 'Meta Ads, Shopify, and more',
+                      onTap: () => context.push('/settings/integrations'),
+                    ),
+                  ),
+                  MorganSettingsSection(
+                    label: 'NOTIFICATIONS',
+                    child: _SettingsTile(
+                      title: 'Notification preferences',
+                      subtitle: notificationSubtitle,
+                      onTap: () => context.push('/settings/notifications'),
+                    ),
+                  ),
+                  MorganSettingsSection(
+                    label: 'INVENTORY',
+                    child: _SettingsTile(
+                      title: 'Lead times',
+                      subtitle: ref.watch(inventoryConfigProvider).maybeWhen(
+                            data: (config) => config.subtitle,
+                            orElse: () => '14-day default',
                           ),
+                      onTap: () => context.push('/settings/inventory'),
+                    ),
+                  ),
+                  MorganSettingsSection(
+                    label: 'ACCOUNT',
+                    child: Column(
+                      children: [
+                        if (_biometricAvailable) ...[
+                          SwitchListTile(
+                            title: Text('Biometric unlock', style: theme.textTheme.titleSmall),
+                            subtitle: Text(
+                              'Face ID or fingerprint to open Morgan',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            value: _biometricEnabled ?? false,
+                            onChanged: _biometricEnabled == null ? null : _toggleBiometric,
+                          ),
+                          Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                        ],
+                        ListTile(
+                          title: Text('Sign out', style: theme.textTheme.titleSmall?.copyWith(color: p.loss)),
+                          onTap: _logout,
                         ),
-                        if (AppConfig.canSkipSetup) ...[
+                      ],
+                    ),
+                  ),
+                  MorganSettingsSection(
+                    label: 'APPEARANCE',
+                    child: Column(
+                      children: MorganThemeMode.values.map((mode) {
+                        final selected = themeMode == mode;
+                        return ListTile(
+                          title: Text(_themeLabel(mode), style: theme.textTheme.titleSmall),
+                          trailing: selected
+                              ? Icon(Icons.check_rounded, color: p.accent, size: 20)
+                              : null,
+                          onTap: () => ref.read(themeModeProvider.notifier).state = mode,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(MorganRadius.md),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  if (AppConfig.canSkipSetup)
+                    MorganSettingsSection(
+                      label: 'DEVELOPER',
+                      bottomSpacing: 0,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppConfig.apiBaseUrl,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontFamily: 'monospace',
+                              color: p.textMuted,
+                            ),
+                          ),
                           const SizedBox(height: MorganSpace.sm),
                           Text(
                             'Local dev mode — Shopify setup skipped',
                             style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

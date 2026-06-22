@@ -5,15 +5,16 @@ import 'package:go_router/go_router.dart';
 import '../../../core/profit/profit_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_empty_state.dart';
+import '../../../shared/widgets/morgan_error_state.dart';
 import '../../../shared/widgets/morgan_metric_card.dart';
-import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
-import 'margin_trend_chart.dart';
+import '../../../shared/widgets/morgan_skeleton.dart';
+import '../../../shared/widgets/morgan_section_header.dart';
 import 'margin_drivers_sheet.dart';
 import 'profit_leaks_section.dart';
 import 'pricing_suggestions_section.dart';
 import 'revenue_forecast_section.dart';
-import 'profit_day_summary_sheet.dart';
 import '../widgets/margin_target_progress.dart';
 
 class ProfitDashboardScreen extends ConsumerWidget {
@@ -33,17 +34,20 @@ class ProfitDashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: MorganSpace.huge),
           children: [
             overviewAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(MorganSpace.screenH),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) => Padding(
+              loading: () => const MorganProfitHeroSkeleton(),
+              error: (error, _) => Padding(
                 padding: const EdgeInsets.all(MorganSpace.screenH),
-                child: Text('Could not load profit overview.', style: theme.textTheme.bodyMedium),
+                child: MorganErrorState(
+                  error: error,
+                  fallbackMessage: 'Could not load profit overview.',
+                  onRetry: () => ref.invalidate(profitOverviewProvider),
+                  compact: true,
+                  centered: false,
+                ),
               ),
               data: (overview) {
                 if (overview == null) {
-                  return const MorganScreenHeader(
+                  return const MorganDetailScreenHeader(
                     title: 'Profit Overview',
                     subtitle: 'Contribution margin and SKU economics',
                   );
@@ -58,7 +62,7 @@ class ProfitDashboardScreen extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    MorganScreenHeader(
+                    MorganDetailScreenHeader(
                       title: 'Profit Overview',
                       subtitle: 'Trailing ${overview.windowDays} days through ${overview.referenceDay}',
                     ),
@@ -94,30 +98,6 @@ class ProfitDashboardScreen extends ConsumerWidget {
                             targetMarginPct: overview.targetMarginPct,
                             belowTarget: overview.belowTarget,
                           ),
-                          const SizedBox(height: MorganSpace.sm),
-                          MorganMetricCard(
-                            label: 'Active profit leaks',
-                            value: overview.activeLeakCount.toString(),
-                            subtitle: overview.amountAtRiskUsd > 0
-                                ? '\$${overview.amountAtRiskUsd} at risk'
-                                : 'Scanned daily after mart refresh',
-                            onTap: () {},
-                          ),
-                          const SizedBox(height: MorganSpace.lg),
-                          MorganSurface(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('30-DAY MARGIN TREND', style: theme.textTheme.labelMedium),
-                                const SizedBox(height: MorganSpace.md),
-                                MarginTrendChart(
-                                  points: overview.trend,
-                                  targetMarginPct: overview.targetMarginPct,
-                                  onPointSelected: (point) => ProfitDaySummarySheet.show(context, point.day),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -133,13 +113,16 @@ class ProfitDashboardScreen extends ConsumerWidget {
             const ProfitLeaksSection(),
             const SizedBox(height: MorganSpace.xl),
             rankingAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) => Padding(
+              loading: () => const MorganProfitSectionSkeleton(cardCount: 3),
+              error: (error, _) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                child: Text('Could not load SKU profit data.', style: theme.textTheme.bodyMedium),
+                child: MorganErrorState(
+                  error: error,
+                  fallbackMessage: 'Could not load SKU profit data.',
+                  onRetry: () => ref.invalidate(profitSkuRankingProvider),
+                  compact: true,
+                  centered: false,
+                ),
               ),
               data: (response) {
                 if (response == null || response.skus.isEmpty) {
@@ -149,9 +132,13 @@ class ProfitDashboardScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const MorganSectionHeader(title: 'Profit by SKU'),
-                        Text(
-                          'SKU economics appear after order history is synced and warehouse marts refresh.',
-                          style: theme.textTheme.bodyMedium,
+                        const MorganEmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'SKU economics on the way',
+                          message:
+                              'Contribution margin by SKU appears after order history syncs.',
+                          compact: true,
+                          centered: false,
                         ),
                       ],
                     ),

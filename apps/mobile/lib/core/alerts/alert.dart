@@ -2,7 +2,7 @@ enum AlertSeverity { info, warning, critical }
 
 enum AlertSeverityFilter { all, warnings, critical }
 
-enum AlertType { marginDrop, adWaste, stockoutRisk, cashCrunch, refundSpike }
+enum AlertType { marginDrop, adWaste, stockoutRisk, cashCrunch, refundSpike, profitLeak }
 
 class AlertLinks {
   const AlertLinks({
@@ -81,6 +81,7 @@ class Alert {
         'stockout_risk' => AlertType.stockoutRisk,
         'cash_crunch' => AlertType.cashCrunch,
         'refund_spike' => AlertType.refundSpike,
+        'profit_leak' => AlertType.profitLeak,
         _ => AlertType.marginDrop,
       };
 }
@@ -112,7 +113,22 @@ class AlertsFeed {
       };
     }).toList();
   }
+
+  List<Alert> sortedFiltered(AlertSeverityFilter filter) {
+    final items = filtered(filter);
+    return [...items]..sort((a, b) {
+        final severity = _severityRank(a.severity).compareTo(_severityRank(b.severity));
+        if (severity != 0) return severity;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+  }
 }
+
+int _severityRank(AlertSeverity severity) => switch (severity) {
+      AlertSeverity.critical => 0,
+      AlertSeverity.warning => 1,
+      AlertSeverity.info => 2,
+    };
 
 String formatAlertRelativeTime(DateTime createdAt) {
   final diff = DateTime.now().difference(createdAt);

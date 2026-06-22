@@ -27,6 +27,8 @@ class InventorySkuHealth {
     this.forecastedVelocityPerDay,
     this.forecastModel,
     this.forecastUnits30d,
+    this.lowConfidence = false,
+    this.velocityTrend = const [],
   });
 
   final String sku;
@@ -50,6 +52,8 @@ class InventorySkuHealth {
   final double? forecastedVelocityPerDay;
   final String? forecastModel;
   final double? forecastUnits30d;
+  final bool lowConfidence;
+  final List<InventoryVelocityTrendPoint> velocityTrend;
 
   factory InventorySkuHealth.fromJson(Map<String, dynamic> json) {
     return InventorySkuHealth(
@@ -74,6 +78,25 @@ class InventorySkuHealth {
       forecastedVelocityPerDay: (json['forecasted_velocity_per_day'] as num?)?.toDouble(),
       forecastModel: json['forecast_model'] as String?,
       forecastUnits30d: (json['forecast_units_30d'] as num?)?.toDouble(),
+      lowConfidence: json['low_confidence'] as bool? ?? false,
+      velocityTrend: (json['velocity_trend'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(InventoryVelocityTrendPoint.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class InventoryVelocityTrendPoint {
+  const InventoryVelocityTrendPoint({required this.day, required this.units});
+
+  final String day;
+  final double units;
+
+  factory InventoryVelocityTrendPoint.fromJson(Map<String, dynamic> json) {
+    return InventoryVelocityTrendPoint(
+      day: json['day'] as String? ?? '',
+      units: (json['units'] as num?)?.toDouble() ?? 0,
     );
   }
 }
@@ -84,6 +107,8 @@ class InventoryHealthResponse {
     required this.stockoutRiskCount,
     required this.overstockCount,
     required this.overstockValueUsd,
+    required this.totalSkuCount,
+    required this.avgDaysOfCover,
     required this.skus,
   });
 
@@ -91,6 +116,8 @@ class InventoryHealthResponse {
   final int stockoutRiskCount;
   final int overstockCount;
   final int overstockValueUsd;
+  final int totalSkuCount;
+  final double? avgDaysOfCover;
   final List<InventorySkuHealth> skus;
 
   factory InventoryHealthResponse.fromJson(Map<String, dynamic> json) {
@@ -100,9 +127,32 @@ class InventoryHealthResponse {
       stockoutRiskCount: (json['stockout_risk_count'] as num?)?.toInt() ?? 0,
       overstockCount: (json['overstock_count'] as num?)?.toInt() ?? 0,
       overstockValueUsd: (json['overstock_value_usd'] as num?)?.round() ?? 0,
+      totalSkuCount: (json['total_sku_count'] as num?)?.toInt() ?? skusJson.length,
+      avgDaysOfCover: (json['avg_days_of_cover'] as num?)?.toDouble(),
       skus: skusJson.whereType<Map<String, dynamic>>().map(InventorySkuHealth.fromJson).toList(),
     );
   }
+}
+
+/// US-UX-12-01 — default list sort: stockout risk first, then fewest days of cover.
+List<InventorySkuHealth> sortInventorySkusByRisk(List<InventorySkuHealth> skus) {
+  const statusRank = {'critical': 0, 'warning': 1, 'healthy': 2, 'unknown': 3};
+  return [...skus]..sort((left, right) {
+      final riskDelta = (right.stockoutRisk ? 1 : 0) - (left.stockoutRisk ? 1 : 0);
+      if (riskDelta != 0) return riskDelta;
+
+      final statusDelta =
+          (statusRank[left.healthStatus] ?? 3) - (statusRank[right.healthStatus] ?? 3);
+      if (statusDelta != 0) return statusDelta;
+
+      final leftDays = left.daysOfStock ?? double.infinity;
+      final rightDays = right.daysOfStock ?? double.infinity;
+      return leftDays.compareTo(rightDays);
+    });
+}
+
+List<InventorySkuHealth> sortInventorySkusByRevenue(List<InventorySkuHealth> skus) {
+  return [...skus]..sort((left, right) => right.grossRevenue.compareTo(left.grossRevenue));
 }
 
 class InventoryRepository {

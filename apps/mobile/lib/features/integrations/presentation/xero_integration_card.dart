@@ -143,89 +143,61 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
 
   @override
   Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
     final status = widget.status;
     final comingSoon = widget.comingSoon;
 
     final displayError = _actionError ??
         (status.status == IntegrationStatus.error ? status.errorMessage : null);
 
-    return MorganSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IntegrationStatusIcon(status: status.status),
-              const SizedBox(width: MorganSpace.sm),
-              Icon(Icons.receipt_long_outlined, color: p.accent, size: 20),
-              const SizedBox(width: MorganSpace.sm),
-              Expanded(
-                child: Text('Xero', style: theme.textTheme.titleMedium),
-              ),
-              if (comingSoon)
-                const IntegrationComingSoonBadge()
-              else
-                IntegrationStatusChip(status: status.status),
-            ],
+    final detailLines = [
+      comingSoon
+          ? 'Xero support is on the roadmap for UK profit insights.'
+          : 'Sync P&L, bank transactions, and invoices from Xero for UK profit insights.',
+      if (status.tenantName != null) 'Organisation: ${status.tenantName}',
+      if (status.needsReauth && status.reauthDueAt != null)
+        'Reconnection due by ${DateFormat.yMMMd().format(status.reauthDueAt!.toLocal())}',
+    ];
+
+    return UnifiedIntegrationCard(
+      name: 'Xero',
+      icon: Icons.receipt_long_outlined,
+      status: status.status,
+      needsReauth: status.needsReauth,
+      comingSoon: comingSoon,
+      dataCoveragePct: widget.dataCoveragePct,
+      detailLines: detailLines,
+      syncMessage: !comingSoon && status.isConnected && !status.booksInitialSyncCompleted
+          ? 'Syncing month-to-date P&L, bank transactions, and invoices…'
+          : null,
+      errorMessage: displayError,
+      lastSyncAt: status.lastSyncAt,
+      actions: [
+        if (status.needsTenantSelection)
+          MorganPrimaryButton(
+            label: 'Select organisation',
+            onPressed: _connecting ? null : _showTenantPicker,
+          )
+        else if (status.status == IntegrationStatus.disconnected)
+          MorganPrimaryButton(
+            label: _connecting ? 'Connecting…' : 'Connect',
+            onPressed: _connecting ? null : _connectXero,
+          )
+        else if (status.status == IntegrationStatus.error || status.needsReauth)
+          MorganPrimaryButton(
+            label: _connecting ? 'Reconnecting…' : 'Reconnect',
+            onPressed: _connecting ? null : _connectXero,
+          )
+        else ...[
+          TextButton(
+            onPressed: () => context.push('/settings/integrations/xero/mapping'),
+            child: const Text('Map accounts'),
           ),
-          const SizedBox(height: MorganSpace.sm),
-          Text(
-            comingSoon
-                ? 'Xero support is on the roadmap for UK profit insights.'
-                : 'Sync P&L, bank transactions, and invoices from Xero for UK profit insights.',
-            style: theme.textTheme.bodySmall,
+          TextButton(
+            onPressed: _disconnecting ? null : _disconnectXero,
+            child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
           ),
-          if (status.tenantName != null)
-            Text('Organisation: ${status.tenantName}', style: theme.textTheme.bodySmall),
-          if (status.needsReauth && status.reauthDueAt != null)
-            Text(
-              'Reconnection due by ${DateFormat.yMMMd().format(status.reauthDueAt!.toLocal())}',
-              style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
-            ),
-          if (status.isConnected && !status.booksInitialSyncCompleted)
-            Text(
-              'Syncing month-to-date P&L, bank transactions, and invoices…',
-              style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
-            ),
-          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
-          if (displayError != null) ...[
-            const SizedBox(height: MorganSpace.xs),
-            Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-          ],
-          const SizedBox(height: MorganSpace.md),
-          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
-          if (!comingSoon) ...[
-            const SizedBox(height: MorganSpace.md),
-            if (status.needsTenantSelection)
-              MorganPrimaryButton(
-                label: 'Select organisation',
-                onPressed: _connecting ? null : _showTenantPicker,
-              )
-            else if (status.status == IntegrationStatus.disconnected)
-              MorganPrimaryButton(
-                label: _connecting ? 'Connecting…' : 'Connect',
-                onPressed: _connecting ? null : _connectXero,
-              )
-            else if (status.status == IntegrationStatus.error || status.needsReauth)
-              MorganPrimaryButton(
-                label: _connecting ? 'Reconnecting…' : 'Reconnect',
-                onPressed: _connecting ? null : _connectXero,
-              )
-            else ...[
-              TextButton(
-                onPressed: () => context.push('/settings/integrations/xero/mapping'),
-                child: const Text('Map accounts'),
-              ),
-              TextButton(
-                onPressed: _disconnecting ? null : _disconnectXero,
-                child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
-              ),
-            ],
-          ],
         ],
-      ),
+      ],
     );
   }
 }

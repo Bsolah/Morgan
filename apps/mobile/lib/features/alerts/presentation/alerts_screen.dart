@@ -3,15 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/alerts/alert.dart';
+import '../../../core/alerts/alert_visuals.dart';
 import '../../../core/alerts/alerts_providers.dart';
 import '../../../core/alerts/alerts_repository.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/morgan_colors.dart';
+import '../../../core/haptics/morgan_haptics.dart';
+import '../../../core/theme/morgan_motion.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_chip.dart';
+import '../../../shared/widgets/morgan_empty_state.dart';
+import '../../../shared/widgets/morgan_error_state.dart';
 import '../../../shared/widgets/morgan_fade_in.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
+import '../../../shared/widgets/morgan_skeleton.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
 class AlertsScreen extends ConsumerWidget {
@@ -39,14 +45,27 @@ class AlertsScreen extends ConsumerWidget {
 
     ref.invalidate(alertsProvider);
     ref.invalidate(alertDetailProvider(alert.id));
+    MorganHaptics.lightImpact();
     return true;
   }
 
-  String _emptyFilterMessage(AlertSeverityFilter filter) => switch (filter) {
-        AlertSeverityFilter.all => 'No alerts right now',
-        AlertSeverityFilter.warnings => 'No warning alerts',
-        AlertSeverityFilter.critical => 'No critical alerts',
+  ({String title, String message}) _emptyCopy(AlertSeverityFilter filter) => switch (filter) {
+        AlertSeverityFilter.all => (
+            title: 'No alerts right now',
+            message: 'You will get a push when something needs attention.',
+          ),
+        AlertSeverityFilter.warnings => (
+            title: 'No warnings',
+            message: 'Margin, ad waste, and stockout signals appear here when flagged.',
+          ),
+        AlertSeverityFilter.critical => (
+            title: 'No critical alerts',
+            message: 'Urgent cash and stock issues show up here first.',
+          ),
       };
+
+  static const _filteredEmptyTitle = 'Nothing in this filter';
+  static const _filteredEmptyMessage = 'Switch to All to see earlier alerts.';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,15 +84,21 @@ class AlertsScreen extends ConsumerWidget {
             await ref.read(alertsProvider.future);
           },
           child: feed.when(
-            loading: () => const CustomScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
+            loading: () => ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: MorganSpace.huge),
+              children: [
+                const MorganScreenHeader(
+                  title: 'Alerts',
+                  subtitle: 'Signals that need your attention',
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                  child: const MorganAlertsListSkeleton(),
                 ),
               ],
             ),
-            error: (_, __) => CustomScrollView(
+            error: (error, __) => CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 const SliverToBoxAdapter(
@@ -85,19 +110,21 @@ class AlertsScreen extends ConsumerWidget {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                    child: Text(
-                      'Could not load alerts. Pull to retry.',
-                      style: theme.textTheme.bodyLarge,
+                    padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                    child: MorganErrorState(
+                      error: error,
+                      fallbackMessage: 'Could not load alerts.',
+                      onRetry: () => ref.invalidate(alertsProvider),
                     ),
                   ),
                 ),
               ],
             ),
             data: (data) {
-              final alerts = data.filtered(filter);
+              final alerts = data.sortedFiltered(filter);
 
               if (data.alerts.isEmpty) {
+                final copy = _emptyCopy(filter);
                 return CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
@@ -111,23 +138,10 @@ class AlertsScreen extends ConsumerWidget {
                       hasScrollBody: false,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.notifications_none_rounded, size: 48, color: p.accent),
-                            const SizedBox(height: MorganSpace.md),
-                            Text(
-                              _emptyFilterMessage(filter),
-                              style: theme.textTheme.titleMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: MorganSpace.xs),
-                            Text(
-                              'We will notify you when something needs attention.',
-                              style: theme.textTheme.bodySmall,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                        child: MorganEmptyState(
+                          icon: Icons.notifications_none_rounded,
+                          title: copy.title,
+                          message: copy.message,
                         ),
                       ),
                     ),
@@ -135,61 +149,132 @@ class AlertsScreen extends ConsumerWidget {
                 );
               }
 
-              return ListView(
-                padding: const EdgeInsets.only(bottom: MorganSpace.huge),
+              final unread = alerts.where((a) => a.isUnread).toList();
+              final read = alerts.where((a) => !a.isUnread).toList();
+
+              return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  const MorganScreenHeader(
-                    title: 'Alerts',
-                    subtitle: 'Signals that need your attention',
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      MorganSpace.screenH,
-                      0,
-                      MorganSpace.screenH,
-                      MorganSpace.md,
+                slivers: [
+                  const SliverToBoxAdapter(
+                    child: MorganScreenHeader(
+                      title: 'Alerts',
+                      subtitle: 'Signals that need your attention',
                     ),
-                    child: Wrap(
-                      spacing: MorganSpace.xs,
-                      runSpacing: MorganSpace.xs,
-                      children: [
-                        for (final (value, label) in _filters)
-                          MorganChip(
-                            label: label,
-                            selected: filter == value,
-                            onTap: () => ref.read(alertSeverityFilterProvider.notifier).state = value,
-                          ),
-                      ],
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        MorganSpace.screenH,
+                        0,
+                        MorganSpace.screenH,
+                        MorganSpace.md,
+                      ),
+                      child: Semantics(
+                        label: 'Filter alerts',
+                        child: Wrap(
+                          spacing: MorganSpace.xs,
+                          runSpacing: MorganSpace.xs,
+                          children: [
+                            for (final (value, label) in _filters)
+                              MorganChip(
+                                label: label,
+                                selected: filter == value,
+                                onTap: () =>
+                                    ref.read(alertSeverityFilterProvider.notifier).state = value,
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   if (alerts.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                      child: Text(
-                        _emptyFilterMessage(filter),
-                        style: theme.textTheme.bodyLarge,
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                        child: MorganEmptyState(
+                          icon: Icons.filter_list_off_outlined,
+                          title: AlertsScreen._filteredEmptyTitle,
+                          message: AlertsScreen._filteredEmptyMessage,
+                          compact: true,
+                          centered: false,
+                        ),
                       ),
                     )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-                      child: Column(
-                        children: [
-                          for (var i = 0; i < alerts.length; i++) ...[
-                            if (i > 0) const SizedBox(height: MorganSpace.sm),
-                            MorganFadeIn(
-                              delay: Duration(milliseconds: 60 * i),
-                              child: _AlertListItem(
-                                alert: alerts[i],
-                                onTap: () => context.push('/alerts/${alerts[i].id}'),
-                                onMarkRead: () => _markAlertRead(ref, alerts[i]),
-                              ),
-                            ),
-                          ],
-                        ],
+                  else ...[
+                    if (unread.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            MorganSpace.screenH,
+                            0,
+                            MorganSpace.screenH,
+                            MorganSpace.sm,
+                          ),
+                          child: Text('UNREAD', style: theme.textTheme.labelMedium),
+                        ),
                       ),
-                    ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                        sliver: SliverList.builder(
+                          itemCount: unread.length,
+                          itemBuilder: (context, i) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: i < unread.length - 1 ? MorganSpace.sm : 0,
+                              ),
+                              child: MorganFadeIn(
+                                delay: MorganMotion.listStaggerDelay(i),
+                                child: _AlertListItem(
+                                  alert: unread[i],
+                                  onTap: () => context.push('/alerts/${unread[i].id}'),
+                                  onMarkRead: () => _markAlertRead(ref, unread[i]),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    if (read.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            MorganSpace.screenH,
+                            unread.isNotEmpty ? MorganSpace.lg : 0,
+                            MorganSpace.screenH,
+                            MorganSpace.sm,
+                          ),
+                          child: Text('EARLIER', style: theme.textTheme.labelMedium),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                          MorganSpace.screenH,
+                          0,
+                          MorganSpace.screenH,
+                          MorganSpace.huge,
+                        ),
+                        sliver: SliverList.builder(
+                          itemCount: read.length,
+                          itemBuilder: (context, i) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: i < read.length - 1 ? MorganSpace.sm : 0,
+                              ),
+                              child: MorganFadeIn(
+                                delay: MorganMotion.listStaggerDelay(i),
+                                child: _AlertListItem(
+                                  alert: read[i],
+                                  onTap: () => context.push('/alerts/${read[i].id}'),
+                                  onMarkRead: () => _markAlertRead(ref, read[i]),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
               );
             },
@@ -214,7 +299,6 @@ class _AlertListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
-
     final tile = _AlertTile(alert: alert, onTap: onTap);
 
     if (!alert.isUnread) return tile;
@@ -268,69 +352,110 @@ class _AlertTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final (stripeColor, _) = alertSeverityAccent(p, alert.severity);
 
-    final (Color accent, Color bg, IconData icon) = switch (alert.severity) {
-      AlertSeverity.critical => (p.loss, p.lossMuted, Icons.error_outline_rounded),
-      AlertSeverity.warning => (p.warning, p.goldMuted, Icons.warning_amber_rounded),
-      AlertSeverity.info => (p.accent, p.accentMuted, Icons.info_outline_rounded),
-    };
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Opacity(
+    return Semantics(
+      button: true,
+      label: _semanticsLabel(),
+      hint: alert.isUnread ? 'Swipe left to mark as read' : null,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Opacity(
         opacity: alert.isUnread ? 1 : 0.72,
         child: MorganSurface(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(MorganRadius.xs),
+          padding: EdgeInsets.zero,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: stripeColor,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(MorganRadius.md),
+                    ),
+                  ),
                 ),
-                child: Icon(icon, size: 18, color: accent),
-              ),
-              const SizedBox(width: MorganSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(MorganSpace.md),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            alert.title,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: alert.isUnread ? FontWeight.w700 : FontWeight.w600,
-                            ),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: p.surfaceMuted,
+                            borderRadius: BorderRadius.circular(MorganRadius.xs),
+                          ),
+                          child: Icon(
+                            alertTypeIcon(alert.type),
+                            size: 18,
+                            color: stripeColor,
                           ),
                         ),
-                        Text(
-                          formatAlertRelativeTime(alert.createdAt),
-                          style: theme.textTheme.bodySmall,
+                        const SizedBox(width: MorganSpace.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                alertTypeLabel(alert.type),
+                                style: theme.textTheme.labelSmall?.copyWith(color: p.textMuted),
+                              ),
+                              const SizedBox(height: MorganSpace.xxs),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      alert.title,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight:
+                                            alert.isUnread ? FontWeight.w700 : FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    formatAlertRelativeTime(alert.createdAt),
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: MorganSpace.xxs),
+                              Text(
+                                alert.magnitude,
+                                style: theme.textTheme.titleSmall?.copyWith(color: stripeColor),
+                              ),
+                            ],
+                          ),
                         ),
+                        if (alert.isUnread) ...[
+                          const SizedBox(width: MorganSpace.xs),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(top: MorganSpace.xxs),
+                            decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
+                          ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: MorganSpace.xxs),
-                    Text(alert.topDriver, style: theme.textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              if (alert.isUnread) ...[
-                const SizedBox(width: MorganSpace.xs),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
+                  ),
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
+      ),
     );
+  }
+
+  String _semanticsLabel() {
+    final status = alert.isUnread ? 'Unread' : 'Read';
+    return '${alertTypeLabel(alert.type)}. ${alert.title}. ${alert.magnitude}. $status.';
   }
 }

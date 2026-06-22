@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/marketing/marketing_repository.dart';
 import '../../../core/metrics/metrics_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
-import '../../../shared/widgets/morgan_metric_card.dart';
+import '../../../shared/widgets/morgan_section_header.dart';
+import '../../../shared/widgets/morgan_skeleton.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import '../widgets/marketing_campaign_row.dart';
+import '../widgets/marketing_meta_connect_card.dart';
+import '../../../shared/widgets/morgan_info_tooltip.dart';
 import '../widgets/mer_trend_chart.dart';
 
+/// MER tab: hero · 7d trend · channel list (US-UX-11-01).
 class MarketingMerTab extends ConsumerWidget {
   const MarketingMerTab({super.key});
 
@@ -18,29 +22,43 @@ class MarketingMerTab extends ConsumerWidget {
     final p = context.morgan;
     final theme = Theme.of(context);
     final merAsync = ref.watch(marketingMerProvider);
-    final money = NumberFormat.compactCurrency(symbol: '\$');
 
     return merAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => Text('Could not load MER data.', style: theme.textTheme.bodySmall),
+      loading: () => const ListView(
+        padding: EdgeInsets.all(MorganSpace.screenH),
+        children: [MorganProfitSectionSkeleton(cardCount: 2)],
+      ),
+      error: (_, __) => ListView(
+        padding: const EdgeInsets.all(MorganSpace.screenH),
+        children: [
+          Text('Could not load MER data.', style: theme.textTheme.bodySmall),
+        ],
+      ),
       data: (mer) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            MorganSpace.screenH,
+            MorganSpace.md,
+            MorganSpace.screenH,
+            MorganSpace.huge,
+          ),
           children: [
-            _MetricWithTooltip(
-              label: 'Blended MER',
-              value: formatMerRatio(mer.blendedMer),
+            if (!mer.metaConnected) ...[
+              const MarketingMetaConnectCard(),
+              const SizedBox(height: MorganSpace.lg),
+            ],
+            _MerHeroCard(
+              mer: mer.blendedMer,
               tooltip: mer.merTooltip,
+              windowDays: mer.windowDays,
             ),
-            const SizedBox(height: MorganSpace.sm),
-            MorganMetricCard(
-              label: 'Net revenue',
-              value: NumberFormat.simpleCurrency().format(mer.netRevenue),
-              subtitle: 'Trailing ${mer.windowDays} days',
+            const SizedBox(height: MorganSpace.lg),
+            const MorganSectionHeader(title: '7-day MER trend'),
+            MorganSurface(
+              child: MerTrendChart(points: mer.trend, trendDays: mer.trendDays),
             ),
             const SizedBox(height: MorganSpace.xl),
-            Text('CHANNEL SPLIT', style: theme.textTheme.labelMedium),
-            const SizedBox(height: MorganSpace.sm),
+            const MorganSectionHeader(title: 'Channels'),
             MorganSurface(
               padding: EdgeInsets.zero,
               child: Column(
@@ -52,13 +70,17 @@ class MarketingMerTab extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Expanded(flex: 2, child: Text('Channel', style: theme.textTheme.labelSmall)),
-                        Expanded(
+                        Expanded(child: Text('Name', style: theme.textTheme.labelSmall)),
+                        SizedBox(
+                          width: 56,
                           child: Text('Spend', style: theme.textTheme.labelSmall, textAlign: TextAlign.end),
                         ),
-                        Expanded(
+                        const SizedBox(width: MorganSpace.sm),
+                        SizedBox(
+                          width: 52,
                           child: Text('MER', style: theme.textTheme.labelSmall, textAlign: TextAlign.end),
                         ),
+                        const SizedBox(width: 18),
                       ],
                     ),
                   ),
@@ -67,33 +89,11 @@ class MarketingMerTab extends ConsumerWidget {
                     final isLast = channel == mer.channels.last;
                     return Column(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: MorganSpace.card,
-                            vertical: MorganSpace.sm,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text(channel.label, style: theme.textTheme.titleSmall),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  money.format(channel.adSpend),
-                                  style: theme.textTheme.bodySmall,
-                                  textAlign: TextAlign.end,
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  formatMerRatio(channel.mer),
-                                  style: theme.textTheme.titleSmall,
-                                  textAlign: TextAlign.end,
-                                ),
-                              ),
-                            ],
-                          ),
+                        MarketingCampaignRow(
+                          name: channel.label,
+                          spend: channel.adSpend,
+                          metricLabel: 'MER',
+                          metricValue: formatMerRatio(channel.mer),
                         ),
                         if (!isLast) Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
                       ],
@@ -102,12 +102,6 @@ class MarketingMerTab extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: MorganSpace.xl),
-            Text('${mer.trendDays}-DAY MER TREND', style: theme.textTheme.labelMedium),
-            const SizedBox(height: MorganSpace.sm),
-            MorganSurface(
-              child: MerTrendChart(points: mer.trend, trendDays: mer.trendDays),
-            ),
           ],
         );
       },
@@ -115,16 +109,16 @@ class MarketingMerTab extends ConsumerWidget {
   }
 }
 
-class _MetricWithTooltip extends StatelessWidget {
-  const _MetricWithTooltip({
-    required this.label,
-    required this.value,
+class _MerHeroCard extends StatelessWidget {
+  const _MerHeroCard({
+    required this.mer,
     required this.tooltip,
+    required this.windowDays,
   });
 
-  final String label;
-  final String value;
+  final double? mer;
   final String tooltip;
+  final int windowDays;
 
   @override
   Widget build(BuildContext context) {
@@ -137,17 +131,17 @@ class _MetricWithTooltip extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(label.toUpperCase(), style: theme.textTheme.labelMedium),
-              const SizedBox(width: MorganSpace.xxs),
-              Tooltip(
+              Text('BLENDED MER', style: theme.textTheme.labelMedium),
+              MorganInfoTooltip(
                 message: tooltip,
-                triggerMode: TooltipTriggerMode.tap,
-                child: Icon(Icons.info_outline, size: 16, color: p.textMuted),
+                semanticsLabel: 'About blended MER',
               ),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
-          Text(value, style: theme.textTheme.headlineMedium),
+          Text(formatMerRatio(mer), style: theme.textTheme.displaySmall),
+          const SizedBox(height: MorganSpace.xxs),
+          Text('Trailing $windowDays days · marketing efficiency ratio', style: theme.textTheme.bodySmall),
         ],
       ),
     );

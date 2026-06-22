@@ -7,6 +7,7 @@ import type { SkuDemandForecastResult } from "../forecast/sku-demand-forecast.js
 
 export type SkuPlanningInput = SkuInventoryInput & {
   demand_forecast?: SkuDemandForecastResult | null;
+  low_confidence?: boolean;
 };
 
 export type SkuInventoryPlanning = SkuInventoryHealth & {
@@ -15,6 +16,8 @@ export type SkuInventoryPlanning = SkuInventoryHealth & {
   forecast_model: SkuDemandForecastResult["model"] | null;
   forecast_units_30d: number | null;
   planning_velocity_per_day: number;
+  low_confidence: boolean;
+  velocity_trend: Array<{ day: string; units: number }>;
 };
 
 export function resolvePlanningVelocity(
@@ -54,5 +57,24 @@ export function buildSkuInventoryPlanning(
     forecast_model: input.demand_forecast?.model ?? null,
     forecast_units_30d: input.demand_forecast?.forecast_units_total ?? null,
     planning_velocity_per_day: health.velocity_per_day,
+    low_confidence: input.low_confidence ?? false,
+    velocity_trend: buildVelocityTrend(input.demand_forecast?.history_daily_units ?? []),
   };
+}
+
+function buildVelocityTrend(historyDailyUnits: number[]): Array<{ day: string; units: number }> {
+  if (historyDailyUnits.length === 0) return [];
+
+  const referenceDay = new Date().toISOString().slice(0, 10);
+  const ref = new Date(`${referenceDay}T00:00:00.000Z`);
+
+  return historyDailyUnits.map((units, index) => {
+    const offset = historyDailyUnits.length - 1 - index;
+    const dayDate = new Date(ref);
+    dayDate.setUTCDate(dayDate.getUTCDate() - offset);
+    return {
+      day: dayDate.toISOString().slice(0, 10),
+      units: Math.round(units * 100) / 100,
+    };
+  });
 }

@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum MorganThemeMode { system, light, dark }
 
-final themeModeProvider = StateProvider<MorganThemeMode>((_) => MorganThemeMode.system);
+/// Dark theme by default (US-UX-00-01). Merchants can override in Settings → Appearance.
+final themeModeProvider = StateProvider<MorganThemeMode>((_) => MorganThemeMode.dark);
 
 final resolvedBrightnessProvider = Provider<Brightness>((ref) {
   final mode = ref.watch(themeModeProvider);

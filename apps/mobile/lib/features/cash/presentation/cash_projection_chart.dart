@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/cash/cash_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_chart_frame.dart';
 
 class CashProjectionChart extends StatefulWidget {
   const CashProjectionChart({
@@ -54,41 +55,36 @@ class _CashProjectionChartState extends State<CashProjectionChart> {
     final zeroIndex = widget.zeroCrossingDay == null
         ? null
         : widget.points.indexWhere((point) => point.day == widget.zeroCrossingDay);
+    final dayLabel = DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'));
+    final summary = '${widget.points.length}-day cash projection. '
+        '$dayLabel balance ${money.format(selected.balanceUsd)}.'
+        '${widget.zeroCrossingDay != null ? ' Zero balance projected on ${DateFormat('MMM d').format(DateTime.parse('${widget.zeroCrossingDay}T12:00:00Z'))}.' : ''} '
+        'Tap the chart to inspect each day.';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: MorganSpace.sm),
-          child: Text(
-            '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · '
-            '${money.format(selected.balanceUsd)}',
-            style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-          ),
-        ),
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
-                child: CustomPaint(
-                  size: constraints.biggest,
-                  painter: _CashProjectionPainter(
-                    points: widget.points,
-                    selectedIndex: _selectedIndex ?? widget.points.length - 1,
-                    zeroIndex: zeroIndex != null && zeroIndex >= 0 ? zeroIndex : null,
-                    lineColor: p.accent,
-                    zeroColor: p.loss,
-                    mutedColor: p.textMuted,
-                  ),
+    return MorganChartFrame(
+      summary: summary,
+      chart: SizedBox(
+        height: 180,
+        width: double.infinity,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return GestureDetector(
+              onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
+              child: CustomPaint(
+                size: constraints.biggest,
+                painter: _CashProjectionPainter(
+                  points: widget.points,
+                  selectedIndex: _selectedIndex ?? widget.points.length - 1,
+                  zeroIndex: zeroIndex != null && zeroIndex >= 0 ? zeroIndex : null,
+                  lineColor: p.accent,
+                  zeroColor: p.loss,
+                  mutedColor: p.textMuted,
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
-      ],
+      ),
     );
   }
 }

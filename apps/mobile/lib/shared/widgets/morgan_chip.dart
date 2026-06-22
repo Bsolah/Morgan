@@ -15,21 +15,30 @@ class MorganChip extends StatelessWidget {
     final p = context.morgan;
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: MorganDuration.fast,
-        padding: const EdgeInsets.symmetric(horizontal: MorganSpace.md, vertical: MorganSpace.xs),
-        decoration: BoxDecoration(
-          color: selected ? p.accentMuted : p.surfaceMuted,
-          borderRadius: BorderRadius.circular(MorganRadius.pill),
-          border: Border.all(color: selected ? p.accent.withValues(alpha: 0.4) : p.borderSubtle),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: selected ? p.accent : p.textSecondary,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: MorganDuration.fast,
+            padding: const EdgeInsets.symmetric(horizontal: MorganSpace.md, vertical: MorganSpace.xs),
+            decoration: BoxDecoration(
+              color: selected ? p.accentMuted : p.surfaceMuted,
+              borderRadius: BorderRadius.circular(MorganRadius.pill),
+              border: Border.all(color: selected ? p.accent.withValues(alpha: 0.4) : p.borderSubtle),
+            ),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: selected ? p.accent : p.textSecondary,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
           ),
         ),
       ),

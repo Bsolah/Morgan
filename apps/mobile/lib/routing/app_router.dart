@@ -33,6 +33,7 @@ import '../features/scenarios/presentation/scenario_planner_screen.dart';
 import '../features/settings/presentation/notification_settings_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../shared/widgets/morgan_shell.dart';
+import '../shared/widgets/morgan_skeleton.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -49,15 +50,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/onboarding',
+    initialLocation: '/bootstrap',
     refreshListenable: refresh,
     redirect: (context, state) {
       final location = state.matchedLocation;
+      final isBootstrap = location == '/bootstrap';
       final isOnboarding = location == '/onboarding';
       final isUnlock = location == '/unlock';
 
       switch (auth.status) {
         case AuthStatus.loading:
+          if (!isBootstrap) return '/bootstrap';
           return null;
 
         case AuthStatus.unauthenticated:
@@ -88,6 +91,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
     },
     routes: [
+      GoRoute(
+        path: '/bootstrap',
+        builder: (context, state) => const MorganBootstrapLoader(),
+      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),

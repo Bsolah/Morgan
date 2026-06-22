@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/profit/profit_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_detail_app_bar.dart';
+import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
@@ -21,11 +23,7 @@ class ProfitLeakDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: p.background,
-      appBar: AppBar(
-        backgroundColor: p.background,
-        foregroundColor: p.textPrimary,
-        title: const Text('Profit leak'),
-      ),
+      appBar: const MorganDetailAppBar(title: 'Profit leak', fallbackRoute: '/profit'),
       body: SafeArea(
         child: leakAsync.when(
           loading: () => Center(child: CircularProgressIndicator(color: p.accent)),
@@ -45,51 +43,59 @@ class ProfitLeakDetailScreen extends ConsumerWidget {
                 MorganSpace.huge,
               ),
               children: [
-                MorganScreenHeader(
-                  title: leak.title,
-                  subtitle: '${leak.leakLabel} · \$${leak.amountAtRiskUsd} at risk',
-                ),
                 MorganSurface(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('EVIDENCE', style: theme.textTheme.labelSmall),
+                      Text(leak.leakLabel, style: theme.textTheme.labelMedium),
+                      const SizedBox(height: MorganSpace.xs),
+                      Text(
+                        '\$${leak.amountAtRiskUsd} at risk',
+                        style: theme.textTheme.displaySmall?.copyWith(color: p.loss),
+                      ),
                       const SizedBox(height: MorganSpace.sm),
-                      Text(leak.body, style: theme.textTheme.bodyLarge),
-                      if (leak.evidenceRows.isNotEmpty) ...[
-                        const SizedBox(height: MorganSpace.md),
-                        ...leak.evidenceRows.map((row) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: MorganSpace.xs),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(row.label, style: theme.textTheme.bodySmall),
-                                ),
-                                const SizedBox(width: MorganSpace.sm),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    row.value,
-                                    style: theme.textTheme.bodySmall?.copyWith(color: p.textPrimary),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
+                      Text(leak.title, style: theme.textTheme.titleMedium),
                     ],
                   ),
                 ),
                 const SizedBox(height: MorganSpace.lg),
-                FilledButton(
-                  onPressed: () => context.push('/recommendations/${leak.recommendationId}'),
-                  child: const Text('View recommendation'),
+                const MorganSectionHeader(title: 'Evidence'),
+                MorganSurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final row in leak.evidenceRows)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: MorganSpace.xs),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('• ', style: theme.textTheme.bodyMedium?.copyWith(color: p.accent)),
+                              Expanded(
+                                child: Text(
+                                  '${row.label}: ${row.value}',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (leak.evidenceRows.isEmpty && leak.body.isNotEmpty)
+                        Text(leak.body, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: MorganSpace.lg),
+                if (leak.recommendationId.isNotEmpty)
+                  MorganPrimaryButton(
+                    label: 'View suggested fix',
+                    onPressed: () => context.push('/recommendations/${leak.recommendationId}'),
+                  )
+                else if (leak.leakType.contains('inventory'))
+                  MorganPrimaryButton(
+                    label: 'Plan reorder scenario',
+                    onPressed: () => context.push('/scenarios'),
+                  ),
               ],
             );
           },
@@ -98,4 +104,3 @@ class ProfitLeakDetailScreen extends ConsumerWidget {
     );
   }
 }
-

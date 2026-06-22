@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/recommendations/recommendation.dart';
 import '../../../../core/theme/morgan_colors.dart';
@@ -11,96 +10,124 @@ class RecommendationCard extends StatelessWidget {
     super.key,
     required this.recommendation,
     this.onTap,
+    this.onAccept,
+    this.onDismiss,
     this.inProgress = false,
+    this.acting = false,
   });
 
   final Recommendation recommendation;
   final VoidCallback? onTap;
+  final VoidCallback? onAccept;
+  final VoidCallback? onDismiss;
   final bool inProgress;
+  final bool acting;
 
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
-    final expiryLabel = DateFormat('MMM d').format(recommendation.expiresAt);
+    final body = recommendation.body.trim();
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(MorganRadius.md),
-      child: MorganSurface(
-        borderColor: inProgress ? p.accent.withValues(alpha: 0.35) : null,
-        child: Row(
+    return MorganSurface(
+      borderColor: inProgress ? p.accent.withValues(alpha: 0.35) : null,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: inProgress ? p.accent.withValues(alpha: 0.15) : p.accentMuted,
-              borderRadius: BorderRadius.circular(MorganRadius.xs),
-            ),
-            child: inProgress
-                ? Icon(Icons.timelapse_rounded, size: 16, color: p.accent)
-                : Text(
-                    '${recommendation.rank}',
-                    style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-                  ),
-          ),
-          const SizedBox(width: MorganSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(recommendation.title, style: theme.textTheme.titleMedium),
-                if (inProgress) ...[
-                  const SizedBox(height: MorganSpace.xxs),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(MorganRadius.md),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MorganSpace.card,
+                MorganSpace.card,
+                MorganSpace.card,
+                MorganSpace.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CategoryPill(label: recommendation.categoryLabel),
+                  const SizedBox(height: MorganSpace.sm),
+                  Text(recommendation.title, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: MorganSpace.xs),
                   Text(
-                    'Tracking impact over 30 days',
-                    style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
+                    recommendation.impactRangeLabel,
+                    style: theme.textTheme.titleSmall?.copyWith(color: p.profit),
                   ),
-                ],
-                const SizedBox(height: MorganSpace.xs),
-                Text(
-                  recommendation.impactRangeLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(color: p.profit),
-                ),
-                const SizedBox(height: MorganSpace.sm),
-                Wrap(
-                  spacing: MorganSpace.xs,
-                  runSpacing: MorganSpace.xxs,
-                  children: [
-                    _MetaChip(label: recommendation.categoryLabel, color: p.accent),
-                    _MetaChip(label: recommendation.effortLabel, color: p.textSecondary),
-                    _MetaChip(label: recommendation.confidenceLabel, color: p.textSecondary),
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(height: MorganSpace.sm),
+                    Text(
+                      body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: p.textPrimary.withValues(alpha: 0.85),
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: MorganSpace.xs),
-                Text(
-                  'Expires $expiryLabel',
-                  style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
-                ),
-              ],
+                  if (inProgress) ...[
+                    const SizedBox(height: MorganSpace.sm),
+                    Text(
+                      'Tracking impact over 30 days',
+                      style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
+          if (!inProgress && (onAccept != null || onDismiss != null))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MorganSpace.card,
+                0,
+                MorganSpace.card,
+                MorganSpace.card,
+              ),
+              child: Row(
+                children: [
+                  if (onDismiss != null)
+                    Expanded(
+                      child: TextButton(
+                        onPressed: acting ? null : onDismiss,
+                        child: const Text('Dismiss'),
+                      ),
+                    ),
+                  if (onAccept != null && onDismiss != null)
+                    const SizedBox(width: MorganSpace.sm),
+                  if (onAccept != null)
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: acting ? null : onAccept,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(MorganRadius.sm),
+                          ),
+                        ),
+                        child: Text(acting ? 'Saving…' : 'Accept'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
-      ),
       ),
     );
   }
 }
 
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.label, required this.color});
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({required this.label});
 
   final String label;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final p = context.morgan;
+    final theme = Theme.of(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -108,13 +135,12 @@ class _MetaChip extends StatelessWidget {
         vertical: MorganSpace.xxs,
       ),
       decoration: BoxDecoration(
-        color: p.surfaceMuted,
+        color: p.accentMuted,
         borderRadius: BorderRadius.circular(MorganRadius.pill),
-        border: Border.all(color: p.borderSubtle),
       ),
       child: Text(
         label,
-        style: theme.textTheme.labelMedium?.copyWith(color: color),
+        style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
       ),
     );
   }

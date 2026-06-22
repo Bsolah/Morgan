@@ -84,6 +84,8 @@ class RecommendationsRepository {
         rank: 1,
         rankScore: 0.94,
         title: 'Pause Meta Campaign X',
+        body:
+            'Campaign X spent \$1,840 over the last 7 days with POAS 0.62 — below your 1.2 break-even.',
         impactLowUsd: 350,
         impactHighUsd: 490,
         effort: RecommendationEffort.low,
@@ -96,6 +98,8 @@ class RecommendationsRepository {
         rank: 2,
         rankScore: 0.89,
         title: 'Reorder Blue Tee (M)',
+        body:
+            'Blue Tee (M) has 6 days of cover at current velocity. Reorder now to avoid a stockout.',
         impactLowUsd: 600,
         impactHighUsd: 800,
         effort: RecommendationEffort.medium,
@@ -108,6 +112,8 @@ class RecommendationsRepository {
         rank: 3,
         rankScore: 0.82,
         title: 'Review stacked discount codes',
+        body:
+            'Three active discount codes stack on checkout for ~18% of orders, eroding margin on top SKUs.',
         impactLowUsd: 900,
         impactHighUsd: 1100,
         effort: RecommendationEffort.low,
@@ -131,6 +137,7 @@ class RecommendationsRepository {
             rank: item.rank,
             rankScore: item.rankScore,
             title: item.title,
+            body: item.body,
             impactLowUsd: item.impactLowUsd,
             impactHighUsd: item.impactHighUsd,
             effort: item.effort,
@@ -177,6 +184,8 @@ class RecommendationsRepository {
       suggestedDeadline: detail.suggestedDeadline,
       calculation: detail.calculation,
       related: detail.related,
+      suggestedSteps: detail.suggestedSteps,
+      body: detail.body,
     );
   }
 
@@ -195,6 +204,7 @@ class RecommendationsRepository {
       required RecommendationCategory category,
       required String description,
       required List<String> evidence,
+      required List<String> suggestedSteps,
       required RecommendationRelatedLink related,
       required List<MetricCitation> citations,
       required String calculationSummary,
@@ -210,9 +220,11 @@ class RecommendationsRepository {
         confidence: confidence,
         category: category,
         expiresAt: now.add(const Duration(days: 7)),
+        body: description,
         description: description,
         evidence: evidence,
         suggestedDeadline: now.add(const Duration(days: 3)),
+        suggestedSteps: suggestedSteps,
         calculation: RecommendationCalculation(
           summary: calculationSummary,
           citations: citations,
@@ -238,6 +250,11 @@ class RecommendationsRepository {
           'POAS 0.62 vs store break-even POAS 1.2',
           'Incremental orders attributed: 14 (\$131 AOV)',
           'Similar campaigns paused last month saved \$380–\$510/wk',
+        ],
+        suggestedSteps: const [
+          'Open Meta Ads Manager and review Campaign X performance',
+          'Pause the campaign and reallocate budget to Shopping',
+          'Monitor MER and POAS over the next 7 days',
         ],
         related: const RecommendationRelatedLink(
           type: RelatedLinkType.leak,
@@ -278,6 +295,11 @@ class RecommendationsRepository {
           'Days of cover: 6 (below 14-day safety target)',
           'Supplier lead time: 10 business days',
         ],
+        suggestedSteps: const [
+          'Confirm current on-hand and open POs for Blue Tee (M)',
+          'Place a reorder covering 21 days of cover plus lead time',
+          'Set a low-stock alert at 14 days of cover',
+        ],
         related: const RecommendationRelatedLink(
           type: RelatedLinkType.metric,
           id: 'metric-inventory-cover',
@@ -310,6 +332,11 @@ class RecommendationsRepository {
           '18% of orders used 2+ discount codes (last 30d)',
           'Average stacked discount: 22% vs planned 12%',
           'Margin erosion estimate: \$900–\$1.1K/mo',
+        ],
+        suggestedSteps: const [
+          'Audit active discount codes in Shopify admin',
+          'Disable stacking rules on overlapping promos',
+          'Track margin recovery on affected SKUs for 2 weeks',
         ],
         related: const RecommendationRelatedLink(
           type: RelatedLinkType.leak,

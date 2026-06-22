@@ -58,6 +58,8 @@ export type InventoryHealthSummary = {
   stockout_risk_count: number;
   overstock_count: number;
   overstock_value_usd: number;
+  total_sku_count: number;
+  avg_days_of_cover: number | null;
 };
 
 export function computeDaysOfStock(availableUnits: number, velocityPerDay: number): number | null {
@@ -267,11 +269,43 @@ export function buildSkuInventoryHealth(
 }
 
 export function summarizeInventoryHealth(skus: SkuInventoryHealth[]): InventoryHealthSummary {
+  const coverValues = skus
+    .map((sku) => sku.days_of_stock)
+    .filter((days): days is number => days != null);
+  const avgDaysOfCover =
+    coverValues.length > 0
+      ? Math.round((coverValues.reduce((sum, days) => sum + days, 0) / coverValues.length) * 10) / 10
+      : null;
+
   return {
     stockout_risk_count: skus.filter((sku) => sku.stockout_risk).length,
     overstock_count: skus.filter((sku) => sku.overstock).length,
     overstock_value_usd: skus.reduce((sum, sku) => sum + sku.overstock_value_usd, 0),
+    total_sku_count: skus.length,
+    avg_days_of_cover: avgDaysOfCover,
   };
+}
+
+const HEALTH_STATUS_RANK: Record<InventoryHealthStatus, number> = {
+  critical: 0,
+  warning: 1,
+  healthy: 2,
+  unknown: 3,
+};
+
+/** US-UX-12-01 — default inventory list sort: stockout risk first, then fewest days of cover. */
+export function rankSkusByStockoutRisk<T extends SkuInventoryHealth>(skus: T[]): T[] {
+  return [...skus].sort((left, right) => {
+    const riskDelta = Number(right.stockout_risk) - Number(left.stockout_risk);
+    if (riskDelta !== 0) return riskDelta;
+
+    const statusDelta = HEALTH_STATUS_RANK[left.health_status] - HEALTH_STATUS_RANK[right.health_status];
+    if (statusDelta !== 0) return statusDelta;
+
+    const leftDays = left.days_of_stock ?? Number.POSITIVE_INFINITY;
+    const rightDays = right.days_of_stock ?? Number.POSITIVE_INFINITY;
+    return leftDays - rightDays;
+  });
 }
 
 export function rankSkusForInventoryHealth(skus: SkuInventoryHealth[]): SkuInventoryHealth[] {

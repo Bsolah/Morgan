@@ -43,6 +43,7 @@
 32. [EPIC-32: Web Dashboard (Scale)](#epic-32-web-dashboard-scale)
 33. [EPIC-33: Outcome Tracking & Attribution](#epic-33-outcome-tracking--attribution)
 34. [EPIC-34: Platform Infrastructure](#epic-34-platform-infrastructure)
+35. [Mobile UX Design (implementation stories)](./morgan-ux-user-stories.md)
 
 ---
 

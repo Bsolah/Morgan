@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/morgan_motion.dart';
 import '../../core/theme/morgan_tokens.dart';
 
 class MorganFadeIn extends StatefulWidget {
@@ -26,12 +27,26 @@ class _MorganFadeInState extends State<MorganFadeIn> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: MorganDuration.normal);
+    _controller = AnimationController(vsync: this, duration: MorganDuration.fast);
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _slide = Tween<Offset>(begin: Offset(0, widget.offsetY / 100), end: Offset.zero)
         .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAnimation());
+  }
+
+  void _startAnimation() {
+    if (!mounted) return;
+    if (MorganMotion.isReducedMotion(context)) {
+      _controller.value = 1;
+      return;
+    }
     Future<void>.delayed(widget.delay, () {
-      if (mounted) _controller.forward();
+      if (!mounted) return;
+      if (MorganMotion.isReducedMotion(context)) {
+        _controller.value = 1;
+        return;
+      }
+      _controller.forward();
     });
   }
 
@@ -43,6 +58,9 @@ class _MorganFadeInState extends State<MorganFadeIn> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    if (MorganMotion.isReducedMotion(context)) {
+      return widget.child;
+    }
     return FadeTransition(
       opacity: _opacity,
       child: SlideTransition(position: _slide, child: widget.child),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/chat/chat_models.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_primary_button.dart';
+import '../../../shared/widgets/morgan_secondary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
 
 class ChatInlineActionCard extends StatelessWidget {
@@ -27,7 +29,7 @@ class ChatInlineActionCard extends StatelessWidget {
 
     return MorganSurface(
       color: p.goldMuted,
-      borderColor: p.isDark ? p.gold.withValues(alpha: 0.25) : const Color(0xFFE8DFC8),
+      borderColor: p.gold.withValues(alpha: p.isDark ? 0.25 : 0.15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -66,22 +68,17 @@ class ChatInlineActionCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: MorganSecondaryButton(
+                    label: 'Dismiss',
+                    expanded: true,
                     onPressed: busy ? null : onDismiss,
-                    child: const Text('Dismiss'),
                   ),
                 ),
                 const SizedBox(width: MorganSpace.sm),
                 Expanded(
-                  child: FilledButton(
+                  child: MorganPrimaryButton(
+                    label: busy ? 'Accepting…' : 'Accept',
                     onPressed: busy ? null : onAccept,
-                    child: busy
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: p.accentOn),
-                          )
-                        : const Text('Accept'),
                   ),
                 ),
               ],

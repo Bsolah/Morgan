@@ -108,6 +108,8 @@ export type MarketingOverview = {
     roas: string;
     mer: string;
   };
+  trend_days: number;
+  trend: CampaignDailyTrendPoint[];
 };
 
 export type CampaignDetailView = {
@@ -372,7 +374,8 @@ export async function getMarketingOverview(
   windowDays = 7,
 ): Promise<MarketingOverview> {
   const referenceDay = new Date().toISOString().slice(0, 10);
-  const sinceDay = addDays(referenceDay, -(windowDays - 1));
+  const trendDays = 7;
+  const sinceDay = addDays(referenceDay, -(Math.max(windowDays, trendDays) - 1));
   const [metaConnected, googleAdsConnected] = await Promise.all([
     isMetaConnected(db, storeId),
     isGoogleAdsConnected(db, storeId),
@@ -446,6 +449,8 @@ export async function getMarketingOverview(
       roas: ROAS_TOOLTIP,
       mer: MER_TOOLTIP,
     },
+    trend_days: trendDays,
+    trend: buildCampaignDailyTrend(dailyRows, trendDays, referenceDay),
   };
 }
 

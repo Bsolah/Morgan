@@ -81,7 +81,7 @@ class MorganPalette {
     surfaceMuted: Color(0xFF242220),
     textPrimary: Color(0xFFF5F3EE),
     textSecondary: Color(0xFFA8A49A),
-    textMuted: Color(0xFF6E6A62),
+    textMuted: Color(0xFF98948C),
     // Primary — metallic shiny gold
     accent: Color(0xFFCFAA3C),
     accentMuted: Color(0xFF2C2414),
@@ -104,6 +104,13 @@ class MorganPalette {
 /// Extension for easy palette access from BuildContext.
 extension MorganPaletteContext on BuildContext {
   MorganPalette get morgan => Theme.of(this).extension<MorganPaletteTheme>()!.palette;
+}
+
+/// Semantic finance colours (US-UX-00-05).
+extension MorganFinanceSemantics on MorganPalette {
+  Color trendColor({required bool isPositive}) => isPositive ? profit : loss;
+
+  Color trendMuted({required bool isPositive}) => isPositive ? profitMuted : lossMuted;
 }
 
 class MorganPaletteTheme extends ThemeExtension<MorganPaletteTheme> {

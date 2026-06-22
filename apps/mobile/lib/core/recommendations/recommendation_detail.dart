@@ -82,11 +82,13 @@ class RecommendationDetail extends Recommendation {
     required super.expiresAt,
     super.status = RecommendationStatus.open,
     super.acceptedAt,
+    super.body = '',
     required this.description,
     required this.evidence,
     required this.suggestedDeadline,
     required this.calculation,
     required this.related,
+    this.suggestedSteps = const [],
   });
 
   final String description;
@@ -94,6 +96,7 @@ class RecommendationDetail extends Recommendation {
   final DateTime suggestedDeadline;
   final RecommendationCalculation calculation;
   final RecommendationRelatedLink related;
+  final List<String> suggestedSteps;
 
   factory RecommendationDetail.fromJson(Map<String, dynamic> json) {
     return RecommendationDetail(
@@ -101,6 +104,7 @@ class RecommendationDetail extends Recommendation {
       rank: json['rank'] as int,
       rankScore: (json['rank_score'] as num).toDouble(),
       title: json['title'] as String,
+      body: json['body'] as String? ?? json['description'] as String? ?? '',
       impactLowUsd: json['impact_low_usd'] as int,
       impactHighUsd: json['impact_high_usd'] as int,
       effort: RecommendationEffort.values.byName(json['effort'] as String),
@@ -118,6 +122,9 @@ class RecommendationDetail extends Recommendation {
         json['calculation'] as Map<String, dynamic>,
       ),
       related: RecommendationRelatedLink.fromJson(json['related'] as Map<String, dynamic>),
+      suggestedSteps: (json['suggested_steps'] as List<dynamic>? ?? const [])
+          .map((step) => step.toString())
+          .toList(),
     );
   }
 }

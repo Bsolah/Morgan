@@ -4,6 +4,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../../../core/profit/profit_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
+import '../../../shared/widgets/morgan_chart_frame.dart';
 
 class MarginTrendChart extends StatefulWidget {
   const MarginTrendChart({
@@ -51,44 +52,47 @@ class _MarginTrendChartState extends State<MarginTrendChart> {
     }
 
     final selected = _selectedIndex != null ? widget.points[_selectedIndex!] : null;
+    final summary = selected != null && selected.marginPct != null
+        ? '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · ${formatMarginPct(selected.marginPct)}'
+        : _defaultSummary(validPoints);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (selected != null && selected.marginPct != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: MorganSpace.sm),
-            child: Text(
-              '${DateFormat('MMM d').format(DateTime.parse('${selected.day}T12:00:00Z'))} · ${formatMarginPct(selected.marginPct)}',
-              style: theme.textTheme.labelMedium?.copyWith(color: p.accent),
-            ),
-          ),
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
-                child: CustomPaint(
-                  size: constraints.biggest,
-                  painter: _MarginTrendPainter(
-                    points: widget.points,
-                    targetMarginPct: widget.targetMarginPct,
-                    selectedIndex: _selectedIndex,
-                    profitColor: p.profit,
-                    accentColor: p.accent,
-                    warningColor: p.warning,
-                    borderColor: p.borderSubtle,
-                    textMuted: p.textMuted,
-                  ),
+    return MorganChartFrame(
+      summary: summary,
+      chart: SizedBox(
+        height: 180,
+        width: double.infinity,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return GestureDetector(
+              onTapDown: (details) => _handleTap(details.localPosition, constraints.biggest),
+              child: CustomPaint(
+                size: constraints.biggest,
+                painter: _MarginTrendPainter(
+                  points: widget.points,
+                  targetMarginPct: widget.targetMarginPct,
+                  selectedIndex: _selectedIndex,
+                  profitColor: p.profit,
+                  accentColor: p.accent,
+                  warningColor: p.warning,
+                  borderColor: p.borderSubtle,
+                  textMuted: p.textMuted,
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
-      ],
+      ),
     );
+  }
+
+  String _defaultSummary(List<DailyMarginTrendPoint> validPoints) {
+    if (validPoints.isEmpty) {
+      return 'Margin trend. Target ${widget.targetMarginPct.toStringAsFixed(0)}%. No data yet.';
+    }
+    final last = validPoints.last;
+    final day = DateFormat('MMM d').format(DateTime.parse('${last.day}T12:00:00Z'));
+    return 'Margin trend through $day. Latest margin ${formatMarginPct(last.marginPct)}, '
+        'target ${widget.targetMarginPct.toStringAsFixed(0)}%. Tap the chart to inspect each day.';
   }
 }
 

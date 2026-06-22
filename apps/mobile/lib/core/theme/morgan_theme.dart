@@ -9,6 +9,14 @@ class MorganTheme {
   static ThemeData light() => _build(MorganPalette.light);
   static ThemeData dark() => _build(MorganPalette.dark);
 
+  static SystemUiOverlayStyle systemUiOverlay(MorganPalette p) => SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: p.isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: p.isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: p.background,
+        systemNavigationBarIconBrightness: p.isDark ? Brightness.light : Brightness.dark,
+      );
+
   static ThemeData _build(MorganPalette p) {
     final textTheme = MorganTypography.textTheme(p);
 
@@ -36,8 +44,8 @@ class MorganTheme {
         backgroundColor: p.background,
         foregroundColor: p.textPrimary,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: textTheme.titleLarge,
-        systemOverlayStyle: p.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        titleTextStyle: textTheme.headlineSmall,
+        systemOverlayStyle: systemUiOverlay(p),
       ),
       dividerTheme: DividerThemeData(color: p.borderSubtle, thickness: 1),
       cardTheme: CardThemeData(
@@ -64,6 +72,25 @@ class MorganTheme {
           foregroundColor: p.accent,
           textStyle: textTheme.titleSmall?.copyWith(color: p.accent),
         ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: p.textPrimary,
+          side: BorderSide(color: p.border),
+          padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl, vertical: MorganSpace.md),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(MorganRadius.sm)),
+          textStyle: textTheme.titleSmall,
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return p.accent;
+          return p.textMuted;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return p.accentMuted;
+          return p.surfaceMuted;
+        }),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: p.surfaceMuted,

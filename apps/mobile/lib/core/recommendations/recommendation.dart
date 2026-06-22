@@ -18,6 +18,7 @@ class Recommendation {
     required this.rank,
     required this.rankScore,
     required this.title,
+    required this.body,
     required this.impactLowUsd,
     required this.impactHighUsd,
     required this.effort,
@@ -32,6 +33,7 @@ class Recommendation {
   final int rank;
   final double rankScore;
   final String title;
+  final String body;
   final int impactLowUsd;
   final int impactHighUsd;
   final RecommendationEffort effort;
@@ -75,6 +77,7 @@ class Recommendation {
       rank: json['rank'] as int,
       rankScore: (json['rank_score'] as num).toDouble(),
       title: json['title'] as String,
+      body: json['body'] as String? ?? '',
       impactLowUsd: json['impact_low_usd'] as int,
       impactHighUsd: json['impact_high_usd'] as int,
       effort: RecommendationEffort.values.byName(json['effort'] as String),
