@@ -1,4 +1,5 @@
 import { addDaysToDayString } from "../cash/runway.js";
+import { computeDemandStdDev } from "../inventory/inventory-reorder.js";
 import {
   merchantLocalDay,
   merchantLocalHourMinute,
@@ -32,6 +33,8 @@ export type SkuDemandForecastResult = {
   history_days: number;
   zero_day_ratio: number;
   avg_daily_units: number;
+  demand_std_dev: number;
+  history_daily_units: number[];
   forecast_units_total: number;
   daily: SkuDemandForecastDailyPoint[];
 };
@@ -179,6 +182,8 @@ export function forecastSkuDemand(input: {
     history_days: input.history.length,
     zero_day_ratio: roundUnits(zeroDayRatio),
     avg_daily_units: forecast.avg_daily_units,
+    demand_std_dev: roundUnits(computeDemandStdDev(dailyUnits)),
+    history_daily_units: dailyUnits,
     forecast_units_total: forecast.forecast_units_total,
     daily: forecast.daily,
   };

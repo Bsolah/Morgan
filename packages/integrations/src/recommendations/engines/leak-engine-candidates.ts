@@ -22,7 +22,9 @@ export function buildLeakEngineCandidates(
   leaks: ProfitLeakCandidateInput[],
   referenceDay: string,
 ): RecommendationCandidate[] {
-  return leaks.map((leak) => {
+  return leaks
+    .filter((leak) => leak.leak_type !== "dead_stock")
+    .map((leak) => {
     const subject = similaritySubjectForLeak({
       leak_type: leak.leak_type,
       external_key: leak.external_key,

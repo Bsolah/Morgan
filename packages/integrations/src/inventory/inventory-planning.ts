@@ -39,6 +39,9 @@ export function buildSkuInventoryPlanning(
     {
       ...input,
       velocity_per_day: planningVelocity,
+      daily_demand_units: input.demand_forecast?.history_daily_units,
+      revenue_rank: input.revenue_rank ?? null,
+      avg_daily_net_outflow: input.avg_daily_net_outflow ?? null,
     },
     referenceDay,
     leadTimeDays,

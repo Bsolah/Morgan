@@ -312,6 +312,8 @@ export async function getSkuDemandForecastMap(
         history_days: item.historyDays,
         zero_day_ratio: item.zeroDayRatio != null ? Number(item.zeroDayRatio) : 0,
         avg_daily_units: Number(item.avgDailyUnits),
+        demand_std_dev: Math.sqrt(Math.max(Number(item.avgDailyUnits), 0)),
+        history_daily_units: [],
         forecast_units_total: Number(item.forecastUnitsTotal),
         daily: dailyBySku.get(item.sku) ?? [],
       });

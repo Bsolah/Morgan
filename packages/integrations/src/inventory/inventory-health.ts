@@ -4,7 +4,17 @@ export const STOCKOUT_CRITICAL_DAYS = 7;
 export const OVERSTOCK_DAYS = 90;
 export const DEFAULT_LEAD_TIME_DAYS = 14;
 export const REORDER_SAFETY_DAYS = 14;
-export const SAFETY_STOCK_Z_SCORE = 1.65;
+export { SAFETY_STOCK_Z_SCORE } from "./inventory-reorder.js";
+import {
+  buildReorderRecommendationCopy,
+  computeDemandStdDev,
+  computeReorderCostUsd,
+  computeReorderPointUnits,
+  computeReorderQty,
+  computeRunwayImpactDays,
+  computeSafetyStockUnits,
+  SAFETY_STOCK_Z_SCORE,
+} from "./inventory-reorder.js";
 
 export type InventoryHealthStatus = "critical" | "warning" | "healthy" | "unknown";
 
@@ -15,6 +25,9 @@ export type SkuInventoryInput = {
   velocity_per_day: number;
   gross_revenue: number;
   unit_cost: number | null;
+  daily_demand_units?: number[];
+  revenue_rank?: number | null;
+  avg_daily_net_outflow?: number | null;
 };
 
 export type SkuInventoryHealth = {
@@ -30,6 +43,10 @@ export type SkuInventoryHealth = {
   overstock_value_usd: number;
   lead_time_days: number;
   safety_stock_units: number;
+  reorder_point_units: number;
+  reorder_cost_usd: number;
+  runway_impact_days: number | null;
+  revenue_rank: number | null;
   reorder_recommended: boolean;
   reorder_qty: number | null;
   reorder_by_day: string | null;
@@ -56,9 +73,104 @@ export function inventoryHealthStatus(daysOfStock: number | null): InventoryHeal
   return "healthy";
 }
 
-export function computeSafetyStockUnits(velocityPerDay: number, leadTimeDays: number): number {
-  if (velocityPerDay <= 0 || leadTimeDays <= 0) return 0;
-  return Math.ceil(SAFETY_STOCK_Z_SCORE * velocityPerDay * Math.sqrt(leadTimeDays));
+export function computeSafetyStockFromDemand(input: {
+  daily_demand_units?: number[];
+  avg_daily_velocity: number;
+  lead_time_days: number;
+}): number {
+  const demandStdDev =
+    input.daily_demand_units && input.daily_demand_units.length > 0
+      ? computeDemandStdDev(input.daily_demand_units)
+      : Math.sqrt(Math.max(input.avg_daily_velocity, 0));
+
+  return computeSafetyStockUnits(demandStdDev, input.lead_time_days, SAFETY_STOCK_Z_SCORE);
+}
+
+export function buildReorderRecommendation(input: {
+  sku: string;
+  availableUnits: number;
+  velocityPerDay: number;
+  daysOfStock: number | null;
+  leadTimeDays?: number;
+  referenceDay: string;
+  unitCost?: number | null;
+  dailyDemandUnits?: number[];
+  avgDailyNetOutflow?: number | null;
+}): {
+  reorder_recommended: boolean;
+  reorder_point_units: number;
+  reorder_qty: number | null;
+  reorder_cost_usd: number;
+  runway_impact_days: number | null;
+  reorder_by_day: string | null;
+  recommendation_title: string | null;
+  recommendation_body: string | null;
+} {
+  const leadTimeDays = input.leadTimeDays ?? DEFAULT_LEAD_TIME_DAYS;
+  const { sku, availableUnits, velocityPerDay, daysOfStock, referenceDay } = input;
+
+  if (velocityPerDay <= 0) {
+    return {
+      reorder_recommended: false,
+      reorder_point_units: 0,
+      reorder_qty: null,
+      reorder_cost_usd: 0,
+      runway_impact_days: null,
+      reorder_by_day: null,
+      recommendation_title: null,
+      recommendation_body: null,
+    };
+  }
+
+  const safetyStockUnits = computeSafetyStockFromDemand({
+    daily_demand_units: input.dailyDemandUnits,
+    avg_daily_velocity: velocityPerDay,
+    lead_time_days: leadTimeDays,
+  });
+  const reorderPointUnits = computeReorderPointUnits(velocityPerDay, leadTimeDays, safetyStockUnits);
+  const reorderQty = computeReorderQty(reorderPointUnits, availableUnits, velocityPerDay, leadTimeDays);
+  const reorderRecommended = availableUnits <= reorderPointUnits && reorderQty > 0;
+  const reorderCostUsd = computeReorderCostUsd(reorderQty, input.unitCost ?? null);
+  const runwayImpactDays = computeRunwayImpactDays(reorderCostUsd, input.avgDailyNetOutflow ?? null);
+
+  if (!reorderRecommended) {
+    return {
+      reorder_recommended: false,
+      reorder_point_units: Math.round(reorderPointUnits * 10) / 10,
+      reorder_qty: null,
+      reorder_cost_usd: 0,
+      runway_impact_days: null,
+      reorder_by_day: null,
+      recommendation_title: null,
+      recommendation_body: null,
+    };
+  }
+
+  const daysUntilReorder =
+    availableUnits > reorderPointUnits
+      ? Math.max(0, Math.floor((availableUnits - reorderPointUnits) / velocityPerDay))
+      : 0;
+  const reorderByDay = addDaysToDayString(referenceDay, daysUntilReorder);
+  const copy = buildReorderRecommendationCopy({
+    sku,
+    reorder_qty: reorderQty,
+    reorder_cost_usd: reorderCostUsd,
+    reorder_by_day: reorderByDay,
+    runway_impact_days: runwayImpactDays,
+    avg_daily_velocity: velocityPerDay,
+    days_of_stock: daysOfStock,
+  });
+
+  return {
+    reorder_recommended: true,
+    reorder_point_units: Math.round(reorderPointUnits * 10) / 10,
+    reorder_qty: reorderQty,
+    reorder_cost_usd: reorderCostUsd,
+    runway_impact_days: runwayImpactDays,
+    reorder_by_day: reorderByDay,
+    recommendation_title: copy.title,
+    recommendation_body: copy.body,
+  };
 }
 
 export function isStockoutRisk(
@@ -94,49 +206,6 @@ export function computeOverstockValueUsd(
   return Math.round(excessUnits * unitCost);
 }
 
-export function buildReorderRecommendation(input: {
-  sku: string;
-  availableUnits: number;
-  velocityPerDay: number;
-  daysOfStock: number | null;
-  leadTimeDays?: number;
-  referenceDay: string;
-}): {
-  reorder_recommended: boolean;
-  reorder_qty: number | null;
-  reorder_by_day: string | null;
-  recommendation_title: string | null;
-  recommendation_body: string | null;
-} {
-  const leadTimeDays = input.leadTimeDays ?? DEFAULT_LEAD_TIME_DAYS;
-  const { sku, availableUnits, velocityPerDay, daysOfStock, referenceDay } = input;
-
-  if (velocityPerDay <= 0 || daysOfStock == null || daysOfStock >= STOCKOUT_RISK_DAYS) {
-    return {
-      reorder_recommended: false,
-      reorder_qty: null,
-      reorder_by_day: null,
-      recommendation_title: null,
-      recommendation_body: null,
-    };
-  }
-
-  const targetCoverDays = leadTimeDays + REORDER_SAFETY_DAYS;
-  const reorderQty = Math.max(0, Math.ceil(velocityPerDay * targetCoverDays - availableUnits));
-  const daysUntilReorder = Math.max(0, Math.floor(daysOfStock - leadTimeDays));
-  const reorderByDay = addDaysToDayString(referenceDay, daysUntilReorder);
-
-  const roundedQty = reorderQty > 0 ? reorderQty : Math.ceil(velocityPerDay * targetCoverDays);
-
-  return {
-    reorder_recommended: true,
-    reorder_qty: roundedQty,
-    reorder_by_day: reorderByDay,
-    recommendation_title: `Reorder ${sku}`,
-    recommendation_body: `Place a PO for ${roundedQty} units by ${reorderByDay}. At ${velocityPerDay.toFixed(1)}/day you have about ${daysOfStock.toFixed(0)} days of stock left.`,
-  };
-}
-
 export function addDaysToDayString(day: string, delta: number): string {
   const date = new Date(`${day}T12:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + delta);
@@ -149,7 +218,11 @@ export function buildSkuInventoryHealth(
   leadTimeDays = DEFAULT_LEAD_TIME_DAYS,
 ): SkuInventoryHealth {
   const daysOfStock = computeDaysOfStock(input.available_units, input.velocity_per_day);
-  const safetyStockUnits = computeSafetyStockUnits(input.velocity_per_day, leadTimeDays);
+  const safetyStockUnits = computeSafetyStockFromDemand({
+    daily_demand_units: input.daily_demand_units,
+    avg_daily_velocity: input.velocity_per_day,
+    lead_time_days: leadTimeDays,
+  });
   const stockoutRisk = isStockoutRisk(
     daysOfStock,
     input.velocity_per_day,
@@ -167,6 +240,9 @@ export function buildSkuInventoryHealth(
     daysOfStock,
     leadTimeDays,
     referenceDay,
+    unitCost: input.unit_cost,
+    dailyDemandUnits: input.daily_demand_units,
+    avgDailyNetOutflow: input.avg_daily_net_outflow,
   });
 
   return {
@@ -182,6 +258,10 @@ export function buildSkuInventoryHealth(
     overstock_value_usd: overstockValue,
     lead_time_days: leadTimeDays,
     safety_stock_units: safetyStockUnits,
+    reorder_point_units: reorder.reorder_point_units,
+    reorder_cost_usd: reorder.reorder_cost_usd,
+    runway_impact_days: reorder.runway_impact_days,
+    revenue_rank: input.revenue_rank ?? null,
     ...reorder,
   };
 }

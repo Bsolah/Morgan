@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSkuInventoryHealth,
   computeDaysOfStock,
-  computeSafetyStockUnits,
+  computeSafetyStockFromDemand,
   inventoryHealthStatus,
   summarizeInventoryHealth,
 } from "./inventory-health.js";
@@ -36,6 +36,7 @@ describe("inventory-health", () => {
     expect(sku.reorder_qty).toBeGreaterThan(0);
     expect(sku.lead_time_days).toBe(14);
     expect(sku.safety_stock_units).toBeGreaterThan(0);
+    expect(sku.reorder_point_units).toBeGreaterThan(0);
   });
 
   it("uses custom lead time for reorder and safety stock", () => {
@@ -52,7 +53,12 @@ describe("inventory-health", () => {
     );
 
     expect(sku.lead_time_days).toBe(21);
-    expect(sku.safety_stock_units).toBe(computeSafetyStockUnits(5, 21));
+    expect(sku.safety_stock_units).toBe(
+      computeSafetyStockFromDemand({
+        avg_daily_velocity: 5,
+        lead_time_days: 21,
+      }),
+    );
     expect(sku.reorder_by_day).not.toBeNull();
   });
 

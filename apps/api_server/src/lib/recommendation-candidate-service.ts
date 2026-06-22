@@ -8,8 +8,10 @@ import {
   buildInventoryEngineCandidates,
   buildLeakEngineCandidates,
   buildMarketingEngineCandidates,
+  buildDeadStockLiquidationCandidates,
   dedupeRecommendationCandidates,
   RECOMMENDATION_CANDIDATE_DEDUPE_WINDOW_DAYS,
+  type DeadStockEvidence,
   type RecommendationCandidate,
 } from "@morgan/integrations";
 import { env } from "../config.js";
@@ -205,13 +207,37 @@ export async function generateRecommendationCandidatesForStore(
     referenceDay,
   );
 
+  const deadStockLeaks = activeLeaks.filter((leak) => leak.leakType === "dead_stock");
+  const deadStockCandidates = buildDeadStockLiquidationCandidates(
+    deadStockLeaks
+      .map((leak) => {
+        const evidence = leak.evidence?.[0];
+        if (!evidence || typeof evidence.sku !== "string") {
+          return null;
+        }
+        return {
+          id: leak.id,
+          amount_at_risk_usd:
+            leak.amountAtRiskUsd != null ? Number(leak.amountAtRiskUsd) : null,
+          evidence: evidence as DeadStockEvidence,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null),
+    referenceDay,
+  );
+
   const inventoryCandidates = buildInventoryEngineCandidates(inventorySkus, referenceDay);
   const marketingCandidates = buildMarketingEngineCandidates(
     marketingAllocation.campaigns,
     referenceDay,
   );
 
-  const emitted = [...leakCandidates, ...inventoryCandidates, ...marketingCandidates];
+  const emitted = [
+    ...leakCandidates,
+    ...inventoryCandidates,
+    ...deadStockCandidates,
+    ...marketingCandidates,
+  ];
   const deduped = dedupeRecommendationCandidates(emitted, recentHashes, referenceDay);
 
   await persistCandidates(db, storeId, referenceDay, deduped);

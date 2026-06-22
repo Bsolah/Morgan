@@ -18,6 +18,7 @@ import {
 } from "./product-catalog-reader.js";
 import { getSkuDemandForecastMap } from "./sku-demand-forecast-service.js";
 import { getProfitSkuRanking } from "./sku-economics-service.js";
+import { getCashRunway } from "./cash-runway-service.js";
 
 export type InventoryHealthView = {
   store_id: string;
@@ -41,7 +42,7 @@ async function buildSkuHealthList(
   windowDays: number,
   referenceDay: string,
 ): Promise<SkuInventoryPlanning[]> {
-  const [skuRanking, availableBySku, unitCostBySku, titlesBySku, leadTimes, demandForecasts] =
+  const [skuRanking, availableBySku, unitCostBySku, titlesBySku, leadTimes, demandForecasts, runway] =
     await Promise.all([
       getProfitSkuRanking(db, storeId, windowDays),
       loadAvailableUnitsBySku(env.BRONZE_STORAGE_PATH, storeId),
@@ -49,9 +50,13 @@ async function buildSkuHealthList(
       loadSkuTitlesBySku(env.BRONZE_STORAGE_PATH, storeId),
       loadLeadTimeDaysBySku(db, storeId),
       getSkuDemandForecastMap(db, storeId),
+      getCashRunway(db, storeId),
     ]);
 
-  return skuRanking.skus.map((summary) => {
+  const avgDailyNetOutflow =
+    runway.avg_daily_net_outflow != null ? Number(runway.avg_daily_net_outflow) : null;
+
+  return skuRanking.skus.map((summary, index) => {
     const leadTimeDays = resolveLeadTimeDaysForSku(
       summary.sku,
       leadTimes.defaultLeadTimeDays,
@@ -67,6 +72,8 @@ async function buildSkuHealthList(
         gross_revenue: summary.gross_revenue,
         unit_cost: unitCostBySku.get(summary.sku) ?? null,
         demand_forecast: demandForecasts.get(summary.sku) ?? null,
+        revenue_rank: index + 1,
+        avg_daily_net_outflow: avgDailyNetOutflow,
       },
       referenceDay,
       leadTimeDays,

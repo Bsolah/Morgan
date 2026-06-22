@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLeakEngineCandidates } from "./engines/leak-engine-candidates.js";
+import { buildDeadStockLiquidationCandidates } from "./engines/dead-stock-engine-candidates.js";
 import { buildInventoryEngineCandidates } from "./engines/inventory-engine-candidates.js";
 import { buildMarketingEngineCandidates } from "./engines/marketing-engine-candidates.js";
 import type { SkuInventoryPlanning } from "../inventory/inventory-planning.js";
@@ -45,6 +46,10 @@ describe("recommendation engine candidates", () => {
       overstock_value_usd: 0,
       lead_time_days: 10,
       safety_stock_units: 20,
+      reorder_point_units: 90,
+      reorder_cost_usd: 960,
+      runway_impact_days: 2.4,
+      revenue_rank: 1,
       reorder_recommended: true,
       reorder_qty: 120,
       reorder_by_day: "2026-06-22",
@@ -60,6 +65,47 @@ describe("recommendation engine candidates", () => {
     const candidates = buildInventoryEngineCandidates([sku], "2026-06-19");
     expect(candidates.some((row) => row.category === "inventory_reorder")).toBe(true);
     expect(candidates[0]?.similarity_hash).toBe("inventory_reorder:tee-blue-m");
+    expect(candidates[0]?.evidence[0]).toMatchObject({
+      sku: "TEE-BLUE-M",
+      reorder_qty: 120,
+      reorder_cost_usd: 960,
+      runway_impact_days: 2.4,
+    });
+  });
+
+  it("builds dead stock liquidation candidates from active dead_stock leaks", () => {
+    const candidates = buildDeadStockLiquidationCandidates(
+      [
+        {
+          id: "leak-dead-1",
+          amount_at_risk_usd: 5000,
+          evidence: {
+            sku: "HOODIE-GRAY-L",
+            title: "Gray Hoodie (L)",
+            days_of_stock: 200,
+            velocity_30d: 0.2,
+            velocity_90d: 0.8,
+            available_units: 120,
+            inventory_value_usd: 5000,
+            suggested_action: "liquidate",
+          },
+        },
+      ],
+      "2026-06-19",
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      engine: "inventory",
+      category: "inventory_liquidate",
+      effort: "high",
+      subject_sku: "HOODIE-GRAY-L",
+    });
+    expect(candidates[0]?.evidence[0]).toMatchObject({
+      strategy: expect.stringMatching(/^(discount|bundle|pause_reorders)$/),
+      cash_recovered_high_usd: expect.any(Number),
+      margin_sacrificed_high_usd: expect.any(Number),
+    });
   });
 
   it("emits marketing budget reallocation candidates", () => {
