@@ -21,6 +21,7 @@ import { quickbooksIntegrationRoutes } from "./routes/quickbooks-integrations.js
 import { xeroIntegrationRoutes } from "./routes/xero-integrations.js";
 import { googleAdsIntegrationRoutes } from "./routes/google-ads-integrations.js";
 import { registerWarehouseInternalRoutes } from "./routes/warehouse-internal.js";
+import { registerEventProcessingInternalRoutes } from "./routes/event-processing-internal.js";
 import { sqlAgentRoutes } from "./routes/sql-agent.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { profitRoutes } from "./routes/profit.js";
@@ -29,6 +30,8 @@ import { chatRoutes } from "./routes/chat.js";
 import { alertsRoutes } from "./routes/alerts.js";
 import { recommendationsRoutes } from "./routes/recommendations.js";
 import { scenariosRoutes } from "./routes/scenarios.js";
+import { pricingRoutes } from "./routes/pricing.js";
+import { notificationsRoutes } from "./routes/notifications.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -70,6 +73,7 @@ export async function buildApp() {
   await registerIntegrationsHub(app);
   await app.register(marketingRoutes);
   await registerWarehouseInternalRoutes(app);
+  await registerEventProcessingInternalRoutes(app);
   await app.register(sqlAgentRoutes);
   await app.register(metricsRoutes);
   await app.register(profitRoutes);
@@ -77,6 +81,8 @@ export async function buildApp() {
   await app.register(alertsRoutes);
   await app.register(recommendationsRoutes);
   await app.register(scenariosRoutes);
+  await app.register(pricingRoutes);
+  await app.register(notificationsRoutes);
   await app.register(chatRoutes);
 
   return app;

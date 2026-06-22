@@ -9,7 +9,7 @@ import {
 
 export const RECOMMENDATION_CANDIDATE_DEDUPE_WINDOW_DAYS = 7;
 
-export type RecommendationEngine = "leak" | "inventory" | "marketing";
+export type RecommendationEngine = "leak" | "inventory" | "marketing" | "pricing";
 
 export type RecommendationCandidate = {
   engine: RecommendationEngine;

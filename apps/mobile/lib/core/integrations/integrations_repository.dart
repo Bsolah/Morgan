@@ -25,6 +25,7 @@ class MetaIntegrationStatus {
     this.adAccountId,
     this.adAccountName,
     this.needsAccountSelection = false,
+    this.needsReauth = false,
     this.insightsBackfillCompleted = false,
   });
 
@@ -36,6 +37,7 @@ class MetaIntegrationStatus {
   final String? adAccountId;
   final String? adAccountName;
   final bool needsAccountSelection;
+  final bool needsReauth;
   final bool insightsBackfillCompleted;
 
   factory MetaIntegrationStatus.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,7 @@ class MetaIntegrationStatus {
       adAccountId: json['ad_account_id'] as String?,
       adAccountName: json['ad_account_name'] as String?,
       needsAccountSelection: json['needs_account_selection'] as bool? ?? false,
+      needsReauth: json['needs_reauth'] as bool? ?? false,
       insightsBackfillCompleted: json['insights_backfill_completed'] as bool? ?? false,
     );
   }
@@ -336,6 +339,11 @@ class IntegrationsRepository {
     final status = response.data!['status'] as Map<String, dynamic>;
     return GoogleAdsIntegrationStatus.fromJson(status);
   }
+
+  Future<IntegrationsHubView> getIntegrationsHub() async {
+    final response = await _dio.get<Map<String, dynamic>>('/api/v1/integrations/hub');
+    return IntegrationsHubView.fromJson(response.data!);
+  }
 }
 
 final integrationsRepositoryProvider = Provider<IntegrationsRepository>((ref) {
@@ -366,6 +374,113 @@ final xeroIntegrationStatusProvider = FutureProvider<XeroIntegrationStatus>((ref
 final googleAdsIntegrationStatusProvider = FutureProvider<GoogleAdsIntegrationStatus>((ref) async {
   final repo = ref.watch(integrationsRepositoryProvider);
   return repo.getGoogleAdsStatus();
+});
+
+class IntegrationHubCardView {
+  const IntegrationHubCardView({
+    required this.provider,
+    required this.label,
+    required this.status,
+    this.lastSyncAt,
+    this.errorMessage,
+    required this.dataCoveragePct,
+    this.comingSoon = false,
+    this.details = const {},
+  });
+
+  final String provider;
+  final String label;
+  final IntegrationStatus status;
+  final DateTime? lastSyncAt;
+  final String? errorMessage;
+  final int dataCoveragePct;
+  final bool comingSoon;
+  final Map<String, dynamic> details;
+
+  factory IntegrationHubCardView.fromJson(Map<String, dynamic> json) {
+    return IntegrationHubCardView(
+      provider: json['provider'] as String,
+      label: json['label'] as String,
+      status: parseIntegrationStatus(json['status'] as String?),
+      lastSyncAt: json['last_sync_at'] != null
+          ? DateTime.tryParse(json['last_sync_at'] as String)
+          : null,
+      errorMessage: json['error_message'] as String?,
+      dataCoveragePct: json['data_coverage_pct'] as int? ?? 0,
+      comingSoon: json['coming_soon'] as bool? ?? false,
+      details: Map<String, dynamic>.from(json['details'] as Map? ?? {}),
+    );
+  }
+}
+
+class IntegrationsHubView {
+  const IntegrationsHubView({
+    required this.integrations,
+    required this.overallDataCoveragePct,
+    this.summaryMessage,
+  });
+
+  final List<IntegrationHubCardView> integrations;
+  final int overallDataCoveragePct;
+  final String? summaryMessage;
+
+  factory IntegrationsHubView.fromJson(Map<String, dynamic> json) {
+    final cards = (json['integrations'] as List<dynamic>? ?? [])
+        .map((item) => IntegrationHubCardView.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    return IntegrationsHubView(
+      integrations: cards,
+      overallDataCoveragePct: json['overall_data_coverage_pct'] as int? ?? 0,
+      summaryMessage: json['summary_message'] as String?,
+    );
+  }
+
+  IntegrationHubCardView? cardFor(String provider) {
+    for (final card in integrations) {
+      if (card.provider == provider) return card;
+    }
+    return null;
+  }
+}
+
+class ShopifyIntegrationStatus {
+  const ShopifyIntegrationStatus({
+    required this.status,
+    this.shopDomain,
+    this.lastSyncAt,
+    this.errorMessage,
+    this.ordersSyncCompleted = false,
+    this.partialBriefAvailable = false,
+    this.productsSyncCompleted = false,
+  });
+
+  final IntegrationStatus status;
+  final String? shopDomain;
+  final DateTime? lastSyncAt;
+  final String? errorMessage;
+  final bool ordersSyncCompleted;
+  final bool partialBriefAvailable;
+  final bool productsSyncCompleted;
+
+  factory ShopifyIntegrationStatus.fromHubDetails(Map<String, dynamic> json) {
+    return ShopifyIntegrationStatus(
+      status: parseIntegrationStatus(json['status'] as String?),
+      shopDomain: json['shop_domain'] as String?,
+      lastSyncAt: json['last_sync_at'] != null
+          ? DateTime.tryParse(json['last_sync_at'] as String)
+          : null,
+      errorMessage: json['error_message'] as String?,
+      ordersSyncCompleted: json['orders_sync_completed'] as bool? ?? false,
+      partialBriefAvailable: json['partial_brief_available'] as bool? ?? false,
+      productsSyncCompleted: json['products_sync_completed'] as bool? ?? false,
+    );
+  }
+}
+
+final integrationsHubProvider = FutureProvider<IntegrationsHubView>((ref) async {
+  final repo = ref.watch(integrationsRepositoryProvider);
+  return repo.getIntegrationsHub();
 });
 
 const metaOAuthErrorMessages = <String, String>{

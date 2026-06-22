@@ -156,7 +156,101 @@ describe("chat scenario streaming", () => {
     expect(stream.statusCode).toBe(200);
     expect(stream.body).toContain("event: scenario");
     expect(stream.body).toContain("profit_change_low_usd");
-    expect(stream.body).toContain("Assumes current POAS");
+    expect(stream.body).toContain("revenue_change_low_usd");
+    expect(stream.body).toContain("POAS");
     expect(stream.body).toContain('"text":"projected "');
+  });
+
+  it("POST /api/v1/scenarios/run models Meta spend increase", async () => {
+    const db = getDb();
+    if (db) {
+      await seedMetaAdPerformance(db);
+    }
+
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/scenarios/run",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        channel_changes: [{ channel: "meta", spend_change_pct: 20 }],
+        source: "scenario_planner",
+      },
+    });
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().scenarios.length).toBeGreaterThanOrEqual(1);
+    expect(res.json().combined).toMatchObject({
+      revenue_change_low_usd: expect.any(Number),
+      profit_change_low_usd: expect.any(Number),
+      cash_impact_low_usd: expect.any(Number),
+    });
+    expect(res.json().scenarios[0].assumption_items).toEqual(expect.any(Array));
+  });
+
+  it("POST /api/v1/scenarios/inventory/run models purchase impact", async () => {
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/scenarios/inventory/run",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        sku: "TEE-BLUE",
+        quantity: 500,
+        unit_cost_usd: 12,
+        source: "scenario_planner",
+      },
+    });
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      scenario_type: "inventory_purchase",
+      sku: "TEE-BLUE",
+      quantity: 500,
+      purchase_cost_usd: 6000,
+      runway_warning_threshold_days: 30,
+    });
+    expect(res.json().assumptions).toEqual(expect.any(Array));
+  });
+
+  it("saves an inventory purchase scenario", async () => {
+    const token = await getAccessToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/scenarios",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        scenario_type: "inventory_purchase",
+        title: "Buy 500 units of TEE-BLUE",
+        inputs: { sku: "TEE-BLUE", quantity: 500, unit_cost_usd: 12 },
+        results: {
+          scenario_type: "inventory_purchase",
+          purchase_cost_usd: 6000,
+          runway_warning: false,
+        },
+        source: "scenario_planner",
+      },
+    });
+
+    if (res.statusCode === 503) {
+      expect(["not_configured", "not_ready"]).toContain(res.json().code);
+      return;
+    }
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().scenario).toMatchObject({
+      scenario_type: "inventory_purchase",
+      title: "Buy 500 units of TEE-BLUE",
+    });
   });
 });

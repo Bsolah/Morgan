@@ -9,11 +9,17 @@ import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'integration_card_shared.dart';
 
 class QuickBooksIntegrationCard extends ConsumerStatefulWidget {
-  const QuickBooksIntegrationCard({super.key, required this.status});
+  const QuickBooksIntegrationCard({
+    super.key,
+    required this.status,
+    this.dataCoveragePct = 0,
+  });
 
   final QuickBooksIntegrationStatus status;
+  final int dataCoveragePct;
 
   @override
   ConsumerState<QuickBooksIntegrationCard> createState() => _QuickBooksIntegrationCardState();
@@ -48,12 +54,14 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
       final status = uri.queryParameters['qb_status'];
       if (status == 'select_company') {
         ref.invalidate(quickbooksIntegrationStatusProvider);
+        ref.invalidate(integrationsHubProvider);
         await _showCompanyPicker();
         return;
       }
 
       if (status == 'connected') {
         ref.invalidate(quickbooksIntegrationStatusProvider);
+        ref.invalidate(integrationsHubProvider);
       }
     } catch (_) {
       setState(() => _actionError = quickBooksOAuthErrorMessage('server_error'));
@@ -106,6 +114,7 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
     try {
       await repo.selectQuickBooksCompany(selected);
       ref.invalidate(quickbooksIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not select that QuickBooks company.');
     } finally {
@@ -122,6 +131,7 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
     try {
       await ref.read(integrationsRepositoryProvider).disconnectQuickBooks();
       ref.invalidate(quickbooksIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not disconnect QuickBooks.');
     } finally {
@@ -134,9 +144,6 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
     final p = context.morgan;
     final theme = Theme.of(context);
     final status = widget.status;
-    final lastSyncLabel = status.lastSyncAt != null
-        ? DateFormat.yMMMd().add_jm().format(status.lastSyncAt!.toLocal())
-        : 'Never';
 
     final displayError = _actionError ??
         (status.status == IntegrationStatus.error ? status.errorMessage : null);
@@ -147,12 +154,14 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance_outlined, color: p.accent),
+              IntegrationStatusIcon(status: status.status),
+              const SizedBox(width: MorganSpace.sm),
+              Icon(Icons.account_balance_outlined, color: p.accent, size: 20),
               const SizedBox(width: MorganSpace.sm),
               Expanded(
-                child: Text('QuickBooks Online', style: theme.textTheme.titleMedium),
+                child: Text('QuickBooks', style: theme.textTheme.titleMedium),
               ),
-              _QuickBooksStatusChip(status: status.status),
+              IntegrationStatusChip(status: status.status),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
@@ -167,17 +176,18 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
               'Reconnection due by ${DateFormat.yMMMd().format(status.reauthDueAt!.toLocal())}',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
-          if (status.isConnected)
-            Text('Last sync: $lastSyncLabel', style: theme.textTheme.bodySmall),
           if (status.isConnected && !status.booksInitialSyncCompleted)
             Text(
               'Syncing month-to-date P&L, bills, purchases, and deposits…',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
+          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
           if (displayError != null) ...[
             const SizedBox(height: MorganSpace.xs),
             Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
           ],
+          const SizedBox(height: MorganSpace.md),
+          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
           const SizedBox(height: MorganSpace.md),
           if (status.needsCompanySelection)
             MorganPrimaryButton(
@@ -206,34 +216,6 @@ class _QuickBooksIntegrationCardState extends ConsumerState<QuickBooksIntegratio
           ],
         ],
       ),
-    );
-  }
-}
-
-class _QuickBooksStatusChip extends StatelessWidget {
-  const _QuickBooksStatusChip({required this.status});
-
-  final IntegrationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    final (label, color) = switch (status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected => ('Disconnected', p.textMuted),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(MorganRadius.pill),
-      ),
-      child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
     );
   }
 }

@@ -130,6 +130,8 @@ export const stores = pgTable("stores", {
   platform: varchar("platform", { length: 50 }).notNull().default("shopify"),
   shopDomain: varchar("shop_domain", { length: 255 }).notNull().unique(),
   timezone: varchar("timezone", { length: 100 }).notNull().default("UTC"),
+  shopifyTimezone: varchar("shopify_timezone", { length: 100 }).notNull().default("UTC"),
+  timezoneSource: varchar("timezone_source", { length: 20 }).notNull().default("shopify"),
   currency: varchar("currency", { length: 3 }).notNull().default("USD"),
   status: storeStatusEnum("status").notNull().default("syncing"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -182,8 +184,14 @@ export const merchantFinanceConfig = pgTable("merchant_finance_config", {
     .notNull()
     .default("40"),
   briefingTimeLocal: varchar("briefing_time_local", { length: 5 }).notNull().default("06:00"),
+  pendingBriefingTimeLocal: varchar("pending_briefing_time_local", { length: 5 }),
+  pendingTimezone: varchar("pending_timezone", { length: 100 }),
+  scheduleEffectiveFrom: varchar("schedule_effective_from", { length: 10 }),
+  notificationPrefs: jsonb("notification_prefs"),
   metricsRecalcRequestedAt: timestamp("metrics_recalc_requested_at", { withTimezone: true }),
   metricsRecalcDueBy: timestamp("metrics_recalc_due_by", { withTimezone: true }),
+  metricsRecalcStartedAt: timestamp("metrics_recalc_started_at", { withTimezone: true }),
+  metricsRecalcCompletedAt: timestamp("metrics_recalc_completed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -352,6 +360,36 @@ export const pushDeviceTokens = pgTable(
   (table) => [
     uniqueIndex("push_device_tokens_store_token_unique").on(table.storeId, table.token),
   ],
+);
+
+export const weeklyEmailDigestSends = pgTable(
+  "weekly_email_digest_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    weekStart: varchar("week_start", { length: 10 }).notNull(),
+    recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    resendMessageId: varchar("resend_message_id", { length: 255 }),
+  },
+  (table) => [
+    uniqueIndex("weekly_email_digest_store_week_unique").on(table.storeId, table.weekStart),
+  ],
+);
+
+export const emailDigestUnsubscribeTokens = pgTable(
+  "email_digest_unsubscribe_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("email_digest_unsub_store_unique").on(table.storeId)],
 );
 
 export const subscriptionStatusEnum = pgEnum("subscription_status", [

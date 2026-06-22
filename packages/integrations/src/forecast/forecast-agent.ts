@@ -29,10 +29,12 @@ function buildScenarioAnswer(
 ): string {
   const direction = forecast.spend_change_pct >= 0 ? "increase" : "decrease";
   const profitRange = formatRange(forecast.profit_change_low_usd, forecast.profit_change_high_usd);
+  const revenueRange = formatRange(forecast.revenue_change_low_usd, forecast.revenue_change_high_usd);
   const cashRange = formatRange(forecast.cash_impact_low_usd, forecast.cash_impact_high_usd);
 
   const lines = [
-    `If you ${direction} ${channelLabel(forecast.channel)} spend by ${Math.abs(forecast.spend_change_pct)}% over the next 7 days, projected contribution profit could change by ${profitRange} (${forecast.confidence} confidence, ±${forecast.confidence_band_pct}% band).`,
+    `If you ${direction} ${channelLabel(forecast.channel)} spend by ${Math.abs(forecast.spend_change_pct)}% over the next 7 days, projected attributed revenue could change by ${revenueRange}.`,
+    `Projected contribution profit could change by ${profitRange} (${forecast.confidence} confidence, ±${forecast.confidence_band_pct}% band).`,
     `Estimated cash impact over the same window: ${cashRange}.`,
   ];
 
@@ -139,6 +141,7 @@ export function runForecastAgent(
         baseline_spend_7d_usd: forecast.baseline_spend_7d_usd,
         poas_7d: forecast.poas_7d,
         reference_day: context.referenceDay,
+        assumption_items: forecast.assumption_items,
       },
       results: forecast,
     },

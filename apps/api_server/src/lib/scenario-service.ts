@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { scenarios, type Database } from "@morgan/db";
 import type { ScenarioSavePayload } from "@morgan/integrations";
 
@@ -41,8 +41,9 @@ export async function saveScenario(
       userId: userId ?? null,
       scenarioType: payload.scenario_type,
       title: payload.title,
-      channel: payload.channel,
-      spendChangePct: String(payload.spend_change_pct),
+      channel: payload.scenario_type === "ad_spend" ? payload.channel : null,
+      spendChangePct:
+        payload.scenario_type === "ad_spend" ? String(payload.spend_change_pct) : null,
       inputs: payload.inputs,
       results: payload.results,
       source: payload.source ?? "chat",
@@ -69,6 +70,10 @@ export async function getScenario(
 }
 
 export async function listScenarios(db: Database, storeId: string): Promise<ScenarioView[]> {
-  const rows = await db.select().from(scenarios).where(eq(scenarios.storeId, storeId));
+  const rows = await db
+    .select()
+    .from(scenarios)
+    .where(eq(scenarios.storeId, storeId))
+    .orderBy(desc(scenarios.createdAt));
   return rows.map(mapRow);
 }

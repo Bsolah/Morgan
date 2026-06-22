@@ -10,7 +10,10 @@ import {
   addDays,
   buildAllowedMetricNumbers,
   buildKpiDelta,
+  appendMarginTargetWeeklySummary,
+  buildBriefingMarginTarget,
   calculateMer,
+  clampNarrative,
   leakBody,
   leakTitle,
   merchantLocalDay,
@@ -21,6 +24,9 @@ import {
   type BriefingTopAction,
 } from "@morgan/integrations";
 import { generateBriefingNarrative } from "./briefing-llm-client.js";
+import { sendDailyBriefReadyPush } from "./push-notification-service.js";
+import { loadResolvedBriefingSchedule, applyDueBriefingSchedules } from "./briefing-schedule-service.js";
+import { loadTargetMarginPct } from "./finance-config-service.js";
 import {
   getStoreMetrics,
   metricValue,
@@ -176,23 +182,13 @@ function metricsRecord(metrics: Awaited<ReturnType<typeof getStoreMetrics>>): Re
 }
 
 export async function loadStoreBriefingConfig(db: Database, storeId: string) {
-  const [store] = await db
-    .select({
-      id: stores.id,
-      timezone: stores.timezone,
-      briefingTimeLocal: merchantFinanceConfig.briefingTimeLocal,
-    })
-    .from(stores)
-    .leftJoin(merchantFinanceConfig, eq(merchantFinanceConfig.storeId, stores.id))
-    .where(eq(stores.id, storeId))
-    .limit(1);
-
-  if (!store) return null;
+  const resolved = await loadResolvedBriefingSchedule(db, storeId);
+  if (!resolved) return null;
 
   return {
-    storeId: store.id,
-    timezone: store.timezone,
-    briefingTimeLocal: store.briefingTimeLocal ?? "06:00",
+    storeId,
+    timezone: resolved.timezone,
+    briefingTimeLocal: resolved.briefingTimeLocal,
   };
 }
 
@@ -260,6 +256,20 @@ export async function generateDailyBriefing(
     allowedNumbers,
   });
 
+  const targetMarginPct = await loadTargetMarginPct(db, storeId);
+  const currentProfit = metricValue(metricsView.metrics, "contribution_margin_7d") ?? 0;
+  const currentRevenue = metricValue(metricsView.metrics, "net_revenue_7d") ?? 0;
+  const marginTarget = buildBriefingMarginTarget({
+    contributionMargin7d: currentProfit,
+    netRevenue7d: currentRevenue,
+    priorContributionMargin7d: priorMetrics.contribution_margin_7d,
+    priorNetRevenue7d: priorMetrics.net_revenue_7d,
+    targetMarginPct,
+  });
+  const narrative = marginTarget
+    ? clampNarrative(appendMarginTargetWeeklySummary(output.narrative, marginTarget))
+    : output.narrative;
+
   const summaryJson: BriefingSummaryJson = {
     kpi_deltas: kpiDeltas,
     top_action: topAction,
@@ -268,6 +278,7 @@ export async function generateDailyBriefing(
     source,
     trigger: options.trigger ?? "scheduled",
     alert_type: options.alertType ?? null,
+    ...(marginTarget ? { margin_target: marginTarget } : {}),
   };
 
   const generatedAt = new Date();
@@ -277,7 +288,7 @@ export async function generateDailyBriefing(
       storeId,
       briefingDate: referenceDay,
       headline: output.headline,
-      narrativeText: output.narrative,
+      narrativeText: narrative,
       summaryJson,
       generatedAt,
     })
@@ -285,7 +296,7 @@ export async function generateDailyBriefing(
       target: [dailyBriefings.storeId, dailyBriefings.briefingDate],
       set: {
         headline: output.headline,
-        narrativeText: output.narrative,
+        narrativeText: narrative,
         summaryJson,
         generatedAt,
         version: existing ? existing.version + 1 : 1,
@@ -295,7 +306,7 @@ export async function generateDailyBriefing(
 
   if (!row) return null;
 
-  return {
+  const result: GeneratedDailyBriefing = {
     store_id: storeId,
     briefing_date: row.briefingDate,
     headline: row.headline,
@@ -305,23 +316,36 @@ export async function generateDailyBriefing(
     created: !existing,
     version: row.version,
   };
+
+  const trigger = options.trigger ?? "scheduled";
+  if (result.created && trigger === "scheduled") {
+    await sendDailyBriefReadyPush(db, storeId, {
+      headline: result.headline,
+      kpiDeltas: kpiDeltas,
+      briefingDate: result.briefing_date,
+    });
+  }
+
+  return result;
 }
 
 export async function generateDueDailyBriefings(db: Database): Promise<number> {
+  await applyDueBriefingSchedules(db);
+
   const storeRows = await db
     .select({
       id: stores.id,
-      timezone: stores.timezone,
-      briefingTimeLocal: merchantFinanceConfig.briefingTimeLocal,
     })
-    .from(stores)
-    .leftJoin(merchantFinanceConfig, eq(merchantFinanceConfig.storeId, stores.id));
+    .from(stores);
 
   let generated = 0;
 
   for (const store of storeRows) {
-    const timezone = store.timezone;
-    const briefingTimeLocal = store.briefingTimeLocal ?? "06:00";
+    const config = await loadStoreBriefingConfig(db, store.id);
+    if (!config) continue;
+
+    const timezone = config.timezone;
+    const briefingTimeLocal = config.briefingTimeLocal;
     const localDay = merchantLocalDay(timezone);
     const existing = await getBriefingForDate(db, store.id, localDay);
 
@@ -335,7 +359,10 @@ export async function generateDueDailyBriefings(db: Database): Promise<number> {
       continue;
     }
 
-    const result = await generateDailyBriefing(db, store.id, { referenceDay: localDay });
+    const result = await generateDailyBriefing(db, store.id, {
+      referenceDay: localDay,
+      trigger: "scheduled",
+    });
     if (result?.created) generated += 1;
   }
 

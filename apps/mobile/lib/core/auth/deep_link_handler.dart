@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../routing/app_router.dart';
+import '../navigation/morgan_deep_link.dart';
 import 'auth_controller.dart';
 
 class DeepLinkHandler {
@@ -16,7 +18,7 @@ class DeepLinkHandler {
   Future<void> init() async {
     final initial = await _appLinks.getInitialLink();
     if (initial != null) {
-      _handleUri(initial);
+      await _handleUri(initial);
     }
 
     _subscription = _appLinks.uriLinkStream.listen(_handleUri);
@@ -33,15 +35,22 @@ class DeepLinkHandler {
     if (errorCode != null) return;
 
     final connectToken = uri.queryParameters['connect_token'];
-    if (connectToken == null || connectToken.isEmpty) return;
-    if (connectToken == _lastHandledConnectToken) return;
+    if (connectToken != null && connectToken.isNotEmpty) {
+      if (connectToken == _lastHandledConnectToken) return;
 
-    _lastHandledConnectToken = connectToken;
+      _lastHandledConnectToken = connectToken;
 
-    try {
-      await _ref.read(authControllerProvider.notifier).completeConnect(connectToken);
-    } catch (_) {
-      _lastHandledConnectToken = null;
+      try {
+        await _ref.read(authControllerProvider.notifier).completeConnect(connectToken);
+      } catch (_) {
+        _lastHandledConnectToken = null;
+      }
+      return;
+    }
+
+    final path = resolveMorganDeepLinkPath(uri);
+    if (path != null) {
+      _ref.read(appRouterProvider).go(path);
     }
   }
 }

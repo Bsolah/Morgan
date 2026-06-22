@@ -17,6 +17,10 @@ import {
   type IdempotencyStore,
 } from "./index.js";
 import {
+  DEFAULT_EVENT_PROCESSING_TTL_SECONDS,
+  EventProcessingMetrics,
+} from "./event-processing.js";
+import {
   extractOrderLineFacts,
   extractShopifyId,
   mapInventoryWebhookToLevel,
@@ -28,6 +32,7 @@ export type IngestRuntime = {
   pipeline: EventPipeline;
   publisher: EventPublisher;
   idempotency: IdempotencyStore;
+  eventProcessingMetrics: EventProcessingMetrics;
   orderWriter: OrderFactWriter;
   catalogWriter: CatalogWriter;
   startWorkers(): void;
@@ -49,15 +54,23 @@ export async function createIngestRuntime(options: {
   clickhouseDimProductsTable?: string;
   clickhouseInventoryTable?: string;
   clickhouseOrderLinesTable?: string;
+  eventProcessingTtlSeconds?: number;
 }): Promise<IngestRuntime> {
   const fallbackPublisher = new InMemoryEventPublisher();
   const idempotencyFallback = new InMemoryIdempotencyStore();
+  const eventProcessingMetrics = new EventProcessingMetrics();
+  const workerOptions = {
+    idempotency: idempotencyFallback,
+    metrics: eventProcessingMetrics,
+    idempotencyTtlSeconds: options.eventProcessingTtlSeconds ?? DEFAULT_EVENT_PROCESSING_TTL_SECONDS,
+  };
 
   const publisher = options.kafkaEnabled
     ? await createKafkaPublisher(options.kafkaBrokers, "morgan-api", fallbackPublisher)
     : fallbackPublisher;
 
   const idempotency = await createIdempotencyStore(options.redisUrl, idempotencyFallback);
+  workerOptions.idempotency = idempotency;
   const orderWriter = await createOrderFactWriter({
     clickhouseUrl: options.clickhouseUrl,
     clickhouseTable: options.clickhouseTable,
@@ -104,6 +117,7 @@ export async function createIngestRuntime(options: {
     },
     deadLetter,
     SHOPIFY_ORDERS_TOPIC,
+    workerOptions,
   );
 
   const productWorker = new OrderIngestWorker(
@@ -154,6 +168,7 @@ export async function createIngestRuntime(options: {
     },
     deadLetter,
     SHOPIFY_PRODUCTS_TOPIC,
+    workerOptions,
   );
 
   const inventoryWorker = new OrderIngestWorker(
@@ -175,12 +190,14 @@ export async function createIngestRuntime(options: {
     },
     deadLetter,
     SHOPIFY_INVENTORY_TOPIC,
+    workerOptions,
   );
 
   return {
     pipeline,
     publisher,
     idempotency,
+    eventProcessingMetrics,
     orderWriter,
     catalogWriter,
     startWorkers: () => {

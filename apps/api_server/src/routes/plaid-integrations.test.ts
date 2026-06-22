@@ -44,7 +44,7 @@ describe("plaid integration routes", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("GET /api/v1/integrations/plaid returns disconnected when not connected", async () => {
+  it("GET /api/v1/integrations/plaid returns plaid status payload", async () => {
     const token = await getAccessToken(app);
     const res = await app.inject({
       method: "GET",
@@ -58,11 +58,12 @@ describe("plaid integration routes", () => {
     }
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({
+    const body = res.json() as { provider: string; status: string; privacy_disclosure: string };
+    expect(body).toMatchObject({
       provider: "plaid",
-      status: "disconnected",
       privacy_disclosure: expect.stringContaining("never move money"),
     });
+    expect(["connected", "disconnected", "syncing", "error"]).toContain(body.status);
   });
 
   it("GET /api/v1/integrations/hub includes plaid card", async () => {
@@ -79,11 +80,34 @@ describe("plaid integration routes", () => {
     }
 
     expect(res.statusCode).toBe(200);
-    const providers = (res.json().integrations as Array<{ provider: string }>).map((item) => item.provider);
+    const body = res.json() as {
+      integrations: Array<{
+        provider: string;
+        label: string;
+        status: string;
+        data_coverage_pct: number;
+        coming_soon?: boolean;
+      }>;
+      overall_data_coverage_pct: number;
+    };
+    const providers = body.integrations.map((item) => item.provider);
+    expect(providers).toContain("shopify");
     expect(providers).toContain("meta");
     expect(providers).toContain("plaid");
     expect(providers).toContain("quickbooks");
     expect(providers).toContain("google_ads");
     expect(providers).toContain("xero");
+
+    const plaidCard = body.integrations.find((item) => item.provider === "plaid");
+    expect(plaidCard).toMatchObject({
+      label: "Bank (Plaid)",
+      data_coverage_pct: expect.any(Number),
+    });
+    expect(["connected", "disconnected", "syncing", "error"]).toContain(plaidCard?.status);
+
+    const xeroCard = body.integrations.find((item) => item.provider === "xero");
+    expect(xeroCard?.coming_soon).toBe(true);
+
+    expect(typeof body.overall_data_coverage_pct).toBe("number");
   });
 });

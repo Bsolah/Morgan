@@ -8,6 +8,7 @@ process.env.BRONZE_STORAGE_PATH = "./data/bronze-test";
 process.env.DEAD_LETTER_STORAGE_PATH = "./data/dead-letter-test";
 process.env.CLICKHOUSE_STORAGE_PATH = "./data/clickhouse-test";
 process.env.KAFKA_ENABLED = "false";
+process.env.REDIS_URL = "";
 
 const { buildApp } = await import("../../app.js");
 const { computeShopifyHmac } = await import("./shopify.js");
@@ -27,7 +28,6 @@ describe("Shopify order webhooks", () => {
 
   beforeEach(() => {
     resetIngestRuntimeForTests();
-    getInMemoryPublisher()?.clear();
   });
 
   afterAll(async () => {
@@ -51,6 +51,18 @@ describe("Shopify order webhooks", () => {
     });
   }
 
+  async function waitForPublisherEvents(expectedCount: number) {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const publisher = getInMemoryPublisher();
+      if ((publisher?.events.length ?? 0) >= expectedCount) {
+        return publisher;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return getInMemoryPublisher();
+  }
+
   it("rejects invalid HMAC with 401", async () => {
     const res = await app.inject({
       method: "POST",
@@ -71,7 +83,7 @@ describe("Shopify order webhooks", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ received: true, event_id: webhookId });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForPublisherEvents(1);
 
     const publisher = getInMemoryPublisher();
     expect(publisher?.events).toHaveLength(1);
@@ -93,26 +105,30 @@ describe("Shopify order webhooks", () => {
     expect(second.statusCode).toBe(200);
     expect(second.json()).toMatchObject({ duplicate: true });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForPublisherEvents(1);
 
     const publisher = getInMemoryPublisher();
     expect(publisher?.events).toHaveLength(1);
   });
 
-  it.each(["orders/create", "orders/updated", "orders/cancelled", "refunds/create"])(
-    "routes %s to shopify.orders",
-    async (topic) => {
-      const webhookId = `550e8400-e29b-41d4-a716-44665544${topic.length}001`;
+  it.each([
+    ["orders/create", "550e8400-e29b-41d4-a716-446655440101"],
+    ["orders/updated", "550e8400-e29b-41d4-a716-446655440102"],
+    ["orders/cancelled", "550e8400-e29b-41d4-a716-446655440103"],
+    ["refunds/create", "550e8400-e29b-41d4-a716-446655440104"],
+  ])("routes %s to shopify.orders", async (topic, webhookId) => {
       await postWebhook({ id: 1 }, webhookId, topic);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitForPublisherEvents(1);
       const publisher = getInMemoryPublisher();
       const match = publisher?.events.find((entry) => entry.event.event_id === webhookId);
       expect(match?.topic).toBe(SHOPIFY_ORDERS_TOPIC);
     },
   );
 
-  it.each(["products/update", "products/delete"])("routes %s to shopify.products", async (topic) => {
-    const webhookId = `550e8400-e29b-41d4-a716-44665544${topic.length}002`;
+  it.each([
+    ["products/update", "550e8400-e29b-41d4-a716-446655440201"],
+    ["products/delete", "550e8400-e29b-41d4-a716-446655440202"],
+  ])("routes %s to shopify.products", async (topic, webhookId) => {
     await postWebhook(
       {
         id: 10,
@@ -123,7 +139,7 @@ describe("Shopify order webhooks", () => {
       webhookId,
       topic,
     );
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForPublisherEvents(1);
     const publisher = getInMemoryPublisher();
     const match = publisher?.events.find((entry) => entry.event.event_id === webhookId);
     expect(match?.topic).toBe(SHOPIFY_PRODUCTS_TOPIC);
@@ -136,7 +152,7 @@ describe("Shopify order webhooks", () => {
       webhookId,
       "inventory_levels/update",
     );
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForPublisherEvents(1);
     const publisher = getInMemoryPublisher();
     const match = publisher?.events.find((entry) => entry.event.event_id === webhookId);
     expect(match?.topic).toBe(SHOPIFY_INVENTORY_TOPIC);

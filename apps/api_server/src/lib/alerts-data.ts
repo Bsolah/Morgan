@@ -5,7 +5,8 @@ export type AlertType =
   | "ad_waste"
   | "stockout_risk"
   | "cash_crunch"
-  | "profit_leak";
+  | "profit_leak"
+  | "refund_spike";
 
 export type AlertLinks = {
   brief?: string;
@@ -35,17 +36,21 @@ export type AlertsResponse = {
 };
 
 export type NotificationPrefs = {
+  push_daily_brief: boolean;
   push_warnings: boolean;
   push_critical: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: number;
   quiet_hours_end: number;
+  weekly_email_digest: boolean;
 };
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  push_daily_brief: true,
   push_warnings: true,
   push_critical: true,
   quiet_hours_enabled: true,
   quiet_hours_start: 22,
-  quiet_hours_end: 5,
+  quiet_hours_end: 7,
+  weekly_email_digest: false,
 };

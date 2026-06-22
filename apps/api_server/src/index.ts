@@ -58,9 +58,18 @@ import {
   stopXeroTokenRefreshRunner,
 } from "./lib/xero-token-refresh-runner.js";
 import {
-  startXeroSyncRunner,
-  stopXeroSyncRunner,
-} from "./lib/xero-sync-runner.js";
+  startWeeklyEmailDigestRunner,
+  stopWeeklyEmailDigestRunner,
+} from "./lib/weekly-email-digest-runner.js";
+import {
+  startProfitLeakScanRunner,
+  stopProfitLeakScanRunner,
+} from "./lib/profit-leak-scan-runner.js";
+import { startXeroSyncRunner, stopXeroSyncRunner } from "./lib/xero-sync-runner.js";
+import {
+  startMetricsRecalcRunner,
+  stopMetricsRecalcRunner,
+} from "./lib/metrics-recalc-runner.js";
 
 const app = await buildApp();
 startOrderBackfillRunner();
@@ -72,7 +81,9 @@ startMetaInsightsSyncRunner();
 startPlaidTransactionSyncRunner();
 startCashRunwayRunner();
 startBriefingRunner();
+startWeeklyEmailDigestRunner();
 startProfitLeakScanRunner();
+startMetricsRecalcRunner();
 startRevenueForecastRunner();
 startSkuDemandForecastRunner();
 startQuickBooksTokenRefreshRunner();
@@ -102,7 +113,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     stopPlaidTransactionSyncRunner();
     stopCashRunwayRunner();
     stopBriefingRunner();
+    stopWeeklyEmailDigestRunner();
     stopProfitLeakScanRunner();
+    stopMetricsRecalcRunner();
     stopRevenueForecastRunner();
     stopSkuDemandForecastRunner();
     stopQuickBooksTokenRefreshRunner();

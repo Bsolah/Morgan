@@ -69,22 +69,33 @@ describe("alerts push", () => {
   });
 
   it("detects quiet hours across midnight", () => {
-    setNotificationPrefs("store-1", {
-      quiet_hours_enabled: true,
-      quiet_hours_start: 22,
-      quiet_hours_end: 5,
-    });
-
     const prefs = {
+      push_daily_brief: true,
       push_warnings: true,
       push_critical: true,
       quiet_hours_enabled: true,
       quiet_hours_start: 22,
-      quiet_hours_end: 5,
+      quiet_hours_end: 7,
+      weekly_email_digest: false,
     };
 
     expect(isQuietHours(new Date("2026-06-17T23:00:00.000Z"), prefs)).toBe(true);
     expect(isQuietHours(new Date("2026-06-18T03:00:00.000Z"), prefs)).toBe(true);
     expect(isQuietHours(new Date("2026-06-18T12:00:00.000Z"), prefs)).toBe(false);
+  });
+
+  it("blocks critical alerts when critical push is disabled", async () => {
+    setNotificationPrefs("store-1", {
+      push_critical: false,
+      push_warnings: true,
+    });
+
+    const sent = await maybeSendAlertPush(
+      null,
+      "store-1",
+      sampleAlert({ id: "critical-1", severity: "critical", type: "margin_drop" }),
+    );
+
+    expect(sent).toBe(false);
   });
 });

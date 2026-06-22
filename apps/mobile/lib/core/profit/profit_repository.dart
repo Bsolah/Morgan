@@ -477,8 +477,170 @@ class RevenueForecastResponse {
   }
 }
 
+class PriceIncreaseSuggestionItem {
+  const PriceIncreaseSuggestionItem({
+    required this.sku,
+    this.title,
+    required this.currentPrice,
+    required this.suggestedPrice,
+    required this.increasePct,
+    required this.expectedMarginDeltaUsd,
+    required this.expectedUnitDeltaPct,
+    required this.expectedUnitDelta,
+    required this.confidence,
+    required this.marginRate,
+    required this.targetMarginRate,
+    required this.velocity30d,
+    required this.velocity90d,
+    required this.orders30d,
+  });
+
+  final String sku;
+  final String? title;
+  final double currentPrice;
+  final double suggestedPrice;
+  final double increasePct;
+  final double expectedMarginDeltaUsd;
+  final double expectedUnitDeltaPct;
+  final double expectedUnitDelta;
+  final String confidence;
+  final double marginRate;
+  final double targetMarginRate;
+  final double velocity30d;
+  final double velocity90d;
+  final int orders30d;
+
+  factory PriceIncreaseSuggestionItem.fromJson(Map<String, dynamic> json) {
+    return PriceIncreaseSuggestionItem(
+      sku: json['sku'] as String? ?? '',
+      title: json['title'] as String?,
+      currentPrice: (json['current_price'] as num?)?.toDouble() ?? 0,
+      suggestedPrice: (json['suggested_price'] as num?)?.toDouble() ?? 0,
+      increasePct: (json['increase_pct'] as num?)?.toDouble() ?? 0,
+      expectedMarginDeltaUsd: (json['expected_margin_delta_usd'] as num?)?.toDouble() ?? 0,
+      expectedUnitDeltaPct: (json['expected_unit_delta_pct'] as num?)?.toDouble() ?? 0,
+      expectedUnitDelta: (json['expected_unit_delta'] as num?)?.toDouble() ?? 0,
+      confidence: json['confidence'] as String? ?? 'low',
+      marginRate: (json['margin_rate'] as num?)?.toDouble() ?? 0,
+      targetMarginRate: (json['target_margin_rate'] as num?)?.toDouble() ?? 0.4,
+      velocity30d: (json['velocity_30d'] as num?)?.toDouble() ?? 0,
+      velocity90d: (json['velocity_90d'] as num?)?.toDouble() ?? 0,
+      orders30d: (json['orders_30d'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class PriceDecreaseEvidence {
+  const PriceDecreaseEvidence({
+    required this.returnRatePct,
+    required this.categoryMeanReturnRatePct,
+    required this.returnRateThresholdPct,
+    required this.categoryMedianPrice,
+    this.competitorPriceLow,
+    this.competitorPriceHigh,
+    this.competitorPriceSource,
+  });
+
+  final double returnRatePct;
+  final double categoryMeanReturnRatePct;
+  final double returnRateThresholdPct;
+  final double categoryMedianPrice;
+  final double? competitorPriceLow;
+  final double? competitorPriceHigh;
+  final String? competitorPriceSource;
+
+  factory PriceDecreaseEvidence.fromJson(Map<String, dynamic> json) {
+    return PriceDecreaseEvidence(
+      returnRatePct: (json['return_rate_pct'] as num?)?.toDouble() ?? 0,
+      categoryMeanReturnRatePct: (json['category_mean_return_rate_pct'] as num?)?.toDouble() ?? 0,
+      returnRateThresholdPct: (json['return_rate_threshold_pct'] as num?)?.toDouble() ?? 0,
+      categoryMedianPrice: (json['category_median_price'] as num?)?.toDouble() ?? 0,
+      competitorPriceLow: (json['competitor_price_low'] as num?)?.toDouble(),
+      competitorPriceHigh: (json['competitor_price_high'] as num?)?.toDouble(),
+      competitorPriceSource: json['competitor_price_source'] as String?,
+    );
+  }
+}
+
+class PriceDecreaseSuggestionItem {
+  const PriceDecreaseSuggestionItem({
+    required this.sku,
+    this.title,
+    required this.category,
+    required this.strategy,
+    required this.currentPrice,
+    this.suggestedPrice,
+    this.decreasePct,
+    required this.expectedReturnRateImprovementPct,
+    required this.evidence,
+  });
+
+  final String sku;
+  final String? title;
+  final String category;
+  final String strategy;
+  final double currentPrice;
+  final double? suggestedPrice;
+  final double? decreasePct;
+  final double expectedReturnRateImprovementPct;
+  final PriceDecreaseEvidence evidence;
+
+  bool get isBundle => strategy == 'bundle';
+
+  factory PriceDecreaseSuggestionItem.fromJson(Map<String, dynamic> json) {
+    return PriceDecreaseSuggestionItem(
+      sku: json['sku'] as String? ?? '',
+      title: json['title'] as String?,
+      category: json['category'] as String? ?? '',
+      strategy: json['strategy'] as String? ?? 'decrease',
+      currentPrice: (json['current_price'] as num?)?.toDouble() ?? 0,
+      suggestedPrice: (json['suggested_price'] as num?)?.toDouble(),
+      decreasePct: (json['decrease_pct'] as num?)?.toDouble(),
+      expectedReturnRateImprovementPct:
+          (json['expected_return_rate_improvement_pct'] as num?)?.toDouble() ?? 0,
+      evidence: PriceDecreaseEvidence.fromJson(json['evidence'] as Map<String, dynamic>? ?? const {}),
+    );
+  }
+}
+
+class PricingSuggestionsResponse {
+  const PricingSuggestionsResponse({
+    required this.referenceDay,
+    required this.targetMarginRate,
+    required this.increaseSuggestions,
+    required this.decreaseSuggestions,
+    required this.recommendationOnly,
+  });
+
+  final String referenceDay;
+  final double targetMarginRate;
+  final List<PriceIncreaseSuggestionItem> increaseSuggestions;
+  final List<PriceDecreaseSuggestionItem> decreaseSuggestions;
+  final bool recommendationOnly;
+
+  bool get isEmpty => increaseSuggestions.isEmpty && decreaseSuggestions.isEmpty;
+
+  factory PricingSuggestionsResponse.fromJson(Map<String, dynamic> json) {
+    final increaseJson =
+        json['increase_suggestions'] as List<dynamic>? ?? json['suggestions'] as List<dynamic>? ?? const [];
+    final decreaseJson = json['decrease_suggestions'] as List<dynamic>? ?? const [];
+    return PricingSuggestionsResponse(
+      referenceDay: json['reference_day'] as String? ?? '',
+      targetMarginRate: (json['target_margin_rate'] as num?)?.toDouble() ?? 0.4,
+      increaseSuggestions: increaseJson
+          .whereType<Map<String, dynamic>>()
+          .map(PriceIncreaseSuggestionItem.fromJson)
+          .toList(),
+      decreaseSuggestions: decreaseJson
+          .whereType<Map<String, dynamic>>()
+          .map(PriceDecreaseSuggestionItem.fromJson)
+          .toList(),
+      recommendationOnly: json['recommendation_only'] as bool? ?? true,
+    );
+  }
+}
+
 class ProfitRepository {
-  ProfitRepository(this._dio, this._storeId);
 
   final Dio _dio;
   final String? _storeId;
@@ -563,6 +725,11 @@ class ProfitRepository {
     );
     return RevenueForecastResponse.fromJson(response.data!);
   }
+
+  Future<PricingSuggestionsResponse?> getPricingSuggestions() async {
+    final response = await _dio.get<Map<String, dynamic>>('/api/v1/pricing/suggestions');
+    return PricingSuggestionsResponse.fromJson(response.data!);
+  }
 }
 
 final profitRepositoryProvider = Provider<ProfitRepository>((ref) {
@@ -601,6 +768,10 @@ final profitSkuDetailProvider = FutureProvider.family<ProfitSkuDetailResponse?, 
 
 final revenueForecastProvider = FutureProvider<RevenueForecastResponse?>((ref) async {
   return ref.watch(profitRepositoryProvider).getRevenueForecast();
+});
+
+final pricingSuggestionsProvider = FutureProvider<PricingSuggestionsResponse?>((ref) async {
+  return ref.watch(profitRepositoryProvider).getPricingSuggestions();
 });
 
 String formatProfitCurrency(double value) {

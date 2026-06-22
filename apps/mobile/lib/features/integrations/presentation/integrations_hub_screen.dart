@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/integrations/integrations_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
@@ -10,10 +9,12 @@ import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'google_ads_integration_card.dart';
+import 'integration_card_shared.dart';
 import 'plaid_bank_integration_card.dart';
 import 'quickbooks_integration_card.dart';
+import 'shopify_integration_card.dart';
 import 'xero_integration_card.dart';
-import 'google_ads_integration_card.dart';
 
 class IntegrationsHubScreen extends ConsumerStatefulWidget {
   const IntegrationsHubScreen({super.key});
@@ -34,6 +35,25 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _handleOAuthReturn());
   }
 
+  void _invalidateIntegrations({String? provider}) {
+    ref.invalidate(integrationsHubProvider);
+    if (provider == null || provider == 'meta') {
+      ref.invalidate(metaIntegrationStatusProvider);
+    }
+    if (provider == null || provider == 'plaid') {
+      ref.invalidate(plaidIntegrationStatusProvider);
+    }
+    if (provider == null || provider == 'quickbooks') {
+      ref.invalidate(quickbooksIntegrationStatusProvider);
+    }
+    if (provider == null || provider == 'google_ads') {
+      ref.invalidate(googleAdsIntegrationStatusProvider);
+    }
+    if (provider == null || provider == 'xero') {
+      ref.invalidate(xeroIntegrationStatusProvider);
+    }
+  }
+
   Future<void> _handleOAuthReturn() async {
     final uri = GoRouterState.of(context).uri;
     final metaErrorCode = uri.queryParameters['meta_error'];
@@ -47,80 +67,95 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
 
     if (metaErrorCode != null) {
       setState(() => _actionError = metaOAuthErrorMessage(metaErrorCode));
-      ref.invalidate(metaIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'meta');
       return;
     }
 
     if (qbErrorCode != null) {
       setState(() => _actionError = quickBooksOAuthErrorMessage(qbErrorCode));
-      ref.invalidate(quickbooksIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'quickbooks');
       return;
     }
 
     if (googleAdsErrorCode != null) {
       setState(() => _actionError = googleAdsOAuthErrorMessage(googleAdsErrorCode));
-      ref.invalidate(googleAdsIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'google_ads');
       return;
     }
 
     if (xeroErrorCode != null) {
       setState(() => _actionError = xeroOAuthErrorMessage(xeroErrorCode));
-      ref.invalidate(xeroIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'xero');
       return;
     }
 
     if (metaStatus == 'select_account') {
-      ref.invalidate(metaIntegrationStatusProvider);
-      await _showAccountPicker();
+      _invalidateIntegrations(provider: 'meta');
+      await _showAccountPicker(reconnected: true);
+      return;
+    }
+
+    if (metaStatus == 'reconnected') {
+      _showIntegrationToast('Meta Ads reconnected — syncing now');
+      _invalidateIntegrations(provider: 'meta');
       return;
     }
 
     if (metaStatus == 'connected') {
-      setState(() => _actionMessage = 'Meta Ads connected — syncing now');
-      ref.invalidate(metaIntegrationStatusProvider);
+      _showIntegrationToast('Meta Ads connected — syncing now');
+      _invalidateIntegrations(provider: 'meta');
     }
 
     if (qbStatus == 'select_company') {
       setState(() => _actionMessage = 'Select your QuickBooks company below');
-      ref.invalidate(quickbooksIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'quickbooks');
       return;
     }
 
     if (qbStatus == 'connected') {
       setState(() => _actionMessage = 'QuickBooks connected');
-      ref.invalidate(quickbooksIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'quickbooks');
     }
 
     if (googleAdsStatus == 'select_manager') {
       setState(() => _actionMessage = 'Select your Google Ads manager account below');
-      ref.invalidate(googleAdsIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'google_ads');
       return;
     }
 
     if (googleAdsStatus == 'select_client') {
       setState(() => _actionMessage = 'Select your Google Ads client account below');
-      ref.invalidate(googleAdsIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'google_ads');
       return;
     }
 
     if (googleAdsStatus == 'connected') {
       setState(() => _actionMessage = 'Google Ads connected — syncing now');
-      ref.invalidate(googleAdsIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'google_ads');
     }
 
     if (xeroStatus == 'select_tenant') {
       setState(() => _actionMessage = 'Select your Xero organisation below');
-      ref.invalidate(xeroIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'xero');
       return;
     }
 
     if (xeroStatus == 'connected') {
       setState(() => _actionMessage = 'Xero connected');
-      ref.invalidate(xeroIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'xero');
     }
   }
 
-  Future<void> _connectMeta() async {
+  void _showIntegrationToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _connectMeta({bool reconnect = false}) async {
+    final isReconnect = reconnect ||
+        ref.read(metaIntegrationStatusProvider).valueOrNull?.needsReauth == true ||
+        ref.read(metaIntegrationStatusProvider).valueOrNull?.status == IntegrationStatus.error;
+
     setState(() {
       _connecting = true;
       _actionError = null;
@@ -144,14 +179,20 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
 
       final status = uri.queryParameters['meta_status'];
       if (status == 'select_account') {
-        ref.invalidate(metaIntegrationStatusProvider);
-        await _showAccountPicker();
+        _invalidateIntegrations(provider: 'meta');
+        await _showAccountPicker(reconnected: isReconnect);
+        return;
+      }
+
+      if (status == 'reconnected' || (status == 'connected' && isReconnect)) {
+        _showIntegrationToast('Meta Ads reconnected — syncing now');
+        _invalidateIntegrations(provider: 'meta');
         return;
       }
 
       if (status == 'connected') {
-        setState(() => _actionMessage = 'Meta Ads connected — syncing now');
-        ref.invalidate(metaIntegrationStatusProvider);
+        _showIntegrationToast('Meta Ads connected — syncing now');
+        _invalidateIntegrations(provider: 'meta');
       }
     } catch (e) {
       setState(() => _actionError = metaOAuthErrorMessage('server_error'));
@@ -160,7 +201,7 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
     }
   }
 
-  Future<void> _showAccountPicker() async {
+  Future<void> _showAccountPicker({bool reconnected = false}) async {
     final repo = ref.read(integrationsRepositoryProvider);
     final accounts = await repo.listMetaAdAccounts();
     if (!mounted || accounts.isEmpty) return;
@@ -203,8 +244,10 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
     setState(() => _connecting = true);
     try {
       await repo.selectMetaAdAccount(selected);
-      setState(() => _actionMessage = 'Meta Ads connected — syncing now');
-      ref.invalidate(metaIntegrationStatusProvider);
+      _showIntegrationToast(
+        reconnected ? 'Meta Ads reconnected — syncing now' : 'Meta Ads connected — syncing now',
+      );
+      _invalidateIntegrations(provider: 'meta');
     } catch (_) {
       setState(() => _actionError = 'Could not select that ad account.');
     } finally {
@@ -221,7 +264,7 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
 
     try {
       await ref.read(integrationsRepositoryProvider).disconnectMeta();
-      ref.invalidate(metaIntegrationStatusProvider);
+      _invalidateIntegrations(provider: 'meta');
     } catch (_) {
       setState(() => _actionError = 'Could not disconnect Meta Ads.');
     } finally {
@@ -233,6 +276,7 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+    final hubAsync = ref.watch(integrationsHubProvider);
     final metaAsync = ref.watch(metaIntegrationStatusProvider);
     final plaidAsync = ref.watch(plaidIntegrationStatusProvider);
     final quickbooksAsync = ref.watch(quickbooksIntegrationStatusProvider);
@@ -242,86 +286,109 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
     return Scaffold(
       backgroundColor: p.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: MorganSpace.huge),
-          children: [
-            const MorganScreenHeader(
-              title: 'Integrations',
-              subtitle: 'Connect data sources for profit insights',
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_actionMessage != null) ...[
-                    Text(_actionMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.profit)),
-                    const SizedBox(height: MorganSpace.md),
-                  ],
-                  if (_actionError != null) ...[
-                    Text(_actionError!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
-                    const SizedBox(height: MorganSpace.md),
-                  ],
-                  metaAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (_, __) => Text(
-                      'Could not load integrations.',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    data: (meta) => Column(
-                      children: [
-                        _MetaIntegrationCard(
+        child: hubAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => Center(
+            child: Text('Could not load integrations.', style: theme.textTheme.bodySmall),
+          ),
+          data: (hub) {
+            final shopifyCard = hub.cardFor('shopify');
+            final metaCard = hub.cardFor('meta');
+            final plaidCard = hub.cardFor('plaid');
+            final quickbooksCard = hub.cardFor('quickbooks');
+            final googleAdsCard = hub.cardFor('google_ads');
+            final xeroCard = hub.cardFor('xero');
+
+            return ListView(
+              padding: const EdgeInsets.only(bottom: MorganSpace.huge),
+              children: [
+                const MorganScreenHeader(
+                  title: 'Integrations',
+                  subtitle: 'Connections powering your daily brief',
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: MorganSpace.screenH),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_actionMessage != null) ...[
+                        Text(_actionMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.profit)),
+                        const SizedBox(height: MorganSpace.md),
+                      ],
+                      if (_actionError != null) ...[
+                        Text(_actionError!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
+                        const SizedBox(height: MorganSpace.md),
+                      ],
+                      if (shopifyCard != null)
+                        ShopifyIntegrationCard(
+                          status: ShopifyIntegrationStatus.fromHubDetails(shopifyCard.details),
+                          dataCoveragePct: shopifyCard.dataCoveragePct,
+                        ),
+                      const SizedBox(height: MorganSpace.sm),
+                      metaAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => Text('Could not load Meta Ads.', style: theme.textTheme.bodySmall),
+                        data: (meta) => _MetaIntegrationCard(
                           status: meta,
+                          dataCoveragePct: metaCard?.dataCoveragePct ?? 0,
                           connecting: _connecting,
                           disconnecting: _disconnecting,
-                          onConnect: _connectMeta,
-                          onReconnect: _connectMeta,
+                          onConnect: () => _connectMeta(),
+                          onReconnect: () => _connectMeta(reconnect: true),
                           onSelectAccount: _showAccountPicker,
                           onDisconnect: _disconnectMeta,
                         ),
-                        const SizedBox(height: MorganSpace.sm),
-                        plaidAsync.when(
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => Text(
-                            'Could not load bank connection.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          data: (plaid) => PlaidBankIntegrationCard(status: plaid),
+                      ),
+                      const SizedBox(height: MorganSpace.sm),
+                      plaidAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => Text('Could not load bank connection.', style: theme.textTheme.bodySmall),
+                        data: (plaid) => PlaidBankIntegrationCard(
+                          status: plaid,
+                          dataCoveragePct: plaidCard?.dataCoveragePct ?? 0,
                         ),
-                        const SizedBox(height: MorganSpace.sm),
-                        quickbooksAsync.when(
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => Text(
-                            'Could not load QuickBooks connection.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          data: (quickbooks) => QuickBooksIntegrationCard(status: quickbooks),
+                      ),
+                      const SizedBox(height: MorganSpace.sm),
+                      quickbooksAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => Text('Could not load QuickBooks.', style: theme.textTheme.bodySmall),
+                        data: (quickbooks) => QuickBooksIntegrationCard(
+                          status: quickbooks,
+                          dataCoveragePct: quickbooksCard?.dataCoveragePct ?? 0,
                         ),
-                        const SizedBox(height: MorganSpace.sm),
-                        googleAdsAsync.when(
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => Text(
-                            'Could not load Google Ads connection.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          data: (googleAds) => GoogleAdsIntegrationCard(status: googleAds),
+                      ),
+                      const SizedBox(height: MorganSpace.sm),
+                      googleAdsAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => Text('Could not load Google Ads.', style: theme.textTheme.bodySmall),
+                        data: (googleAds) => GoogleAdsIntegrationCard(
+                          status: googleAds,
+                          dataCoveragePct: googleAdsCard?.dataCoveragePct ?? 0,
                         ),
-                        const SizedBox(height: MorganSpace.sm),
-                        xeroAsync.when(
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => Text(
-                            'Could not load Xero connection.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          data: (xero) => XeroIntegrationCard(status: xero),
+                      ),
+                      const SizedBox(height: MorganSpace.sm),
+                      xeroAsync.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => Text('Could not load Xero.', style: theme.textTheme.bodySmall),
+                        data: (xero) => XeroIntegrationCard(
+                          status: xero,
+                          dataCoveragePct: xeroCard?.dataCoveragePct ?? 0,
+                          comingSoon: xeroCard?.comingSoon ?? true,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: MorganSpace.xl),
+                      MorganSurface(
+                        child: IntegrationsOverallCoveragePanel(
+                          percent: hub.overallDataCoveragePct,
+                          summaryMessage: hub.summaryMessage,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -331,6 +398,7 @@ class _IntegrationsHubScreenState extends ConsumerState<IntegrationsHubScreen> {
 class _MetaIntegrationCard extends StatelessWidget {
   const _MetaIntegrationCard({
     required this.status,
+    required this.dataCoveragePct,
     required this.connecting,
     required this.disconnecting,
     required this.onConnect,
@@ -340,6 +408,7 @@ class _MetaIntegrationCard extends StatelessWidget {
   });
 
   final MetaIntegrationStatus status;
+  final int dataCoveragePct;
   final bool connecting;
   final bool disconnecting;
   final VoidCallback onConnect;
@@ -352,12 +421,10 @@ class _MetaIntegrationCard extends StatelessWidget {
     final p = context.morgan;
     final theme = Theme.of(context);
     final lastSuccessfulSync = status.lastSuccessfulSyncAt ?? status.lastSyncAt;
-    final lastSyncLabel = lastSuccessfulSync != null
-        ? DateFormat.yMMMd().add_jm().format(lastSuccessfulSync.toLocal())
-        : 'Never';
-
-    final syncError = status.syncErrorMessage;
-    final displayError = syncError ?? (status.status == IntegrationStatus.error ? status.errorMessage : null);
+    final displayError = status.needsReauth
+        ? status.errorMessage
+        : (status.syncErrorMessage ??
+            (status.status == IntegrationStatus.error ? status.errorMessage : null));
 
     return MorganSurface(
       child: Column(
@@ -365,12 +432,12 @@ class _MetaIntegrationCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.campaign_outlined, color: p.accent),
+              IntegrationStatusIcon(status: status.status),
               const SizedBox(width: MorganSpace.sm),
-              Expanded(
-                child: Text('Meta Ads', style: theme.textTheme.titleMedium),
-              ),
-              _StatusChip(status: status.status),
+              Icon(Icons.campaign_outlined, color: p.accent, size: 20),
+              const SizedBox(width: MorganSpace.sm),
+              Expanded(child: Text('Meta Ads', style: theme.textTheme.titleMedium)),
+              IntegrationStatusChip(status: status.status),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
@@ -383,14 +450,13 @@ class _MetaIntegrationCard extends StatelessWidget {
                   : 'Backfilling 90 days of campaign insights…',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
-          Text('Last successful sync: $lastSyncLabel', style: theme.textTheme.bodySmall),
+          IntegrationLastSyncLine(lastSyncAt: lastSuccessfulSync),
           if (displayError != null) ...[
             const SizedBox(height: MorganSpace.xs),
-            Text(
-              displayError,
-              style: theme.textTheme.bodySmall?.copyWith(color: p.loss),
-            ),
+            Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
           ],
+          const SizedBox(height: MorganSpace.md),
+          IntegrationDataCoverageBar(percent: dataCoveragePct, compact: true),
           const SizedBox(height: MorganSpace.md),
           if (status.needsAccountSelection)
             MorganPrimaryButton(
@@ -402,7 +468,7 @@ class _MetaIntegrationCard extends StatelessWidget {
               label: connecting ? 'Connecting…' : 'Connect',
               onPressed: connecting ? null : onConnect,
             )
-          else if (status.status == IntegrationStatus.error)
+          else if (status.status == IntegrationStatus.error || status.needsReauth)
             MorganPrimaryButton(
               label: connecting ? 'Reconnecting…' : 'Reconnect',
               onPressed: connecting ? null : onReconnect,
@@ -415,34 +481,6 @@ class _MetaIntegrationCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final IntegrationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    final (label, color) = switch (status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected => ('Disconnected', p.textMuted),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(MorganRadius.pill),
-      ),
-      child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
     );
   }
 }

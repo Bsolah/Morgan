@@ -43,6 +43,8 @@ export interface IdempotencyStore {
   close?(): Promise<void>;
 }
 
+export type OrderProcessor = (event: EventEnvelope) => Promise<void>;
+
 export const ORDER_WEBHOOK_TOPICS = [
   "orders/create",
   "orders/updated",

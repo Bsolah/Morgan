@@ -106,15 +106,25 @@ class ChatScenarioForecast {
     required this.confidence,
     required this.confidenceBandPct,
     required this.assumptions,
+    this.revenueChangeLowUsd = 0,
+    this.revenueChangeHighUsd = 0,
+    this.runwayDaysDeltaLow,
+    this.runwayDaysDeltaHigh,
+    this.assumptionItems = const [],
   });
 
   final int profitChangeLowUsd;
   final int profitChangeHighUsd;
   final int cashImpactLowUsd;
   final int cashImpactHighUsd;
+  final int revenueChangeLowUsd;
+  final int revenueChangeHighUsd;
+  final double? runwayDaysDeltaLow;
+  final double? runwayDaysDeltaHigh;
   final String confidence;
   final int confidenceBandPct;
   final List<String> assumptions;
+  final List<ScenarioAssumptionItem> assumptionItems;
 
   factory ChatScenarioForecast.fromJson(Map<String, dynamic> json) {
     return ChatScenarioForecast(
@@ -122,11 +132,48 @@ class ChatScenarioForecast {
       profitChangeHighUsd: (json['profit_change_high_usd'] as num?)?.round() ?? 0,
       cashImpactLowUsd: (json['cash_impact_low_usd'] as num?)?.round() ?? 0,
       cashImpactHighUsd: (json['cash_impact_high_usd'] as num?)?.round() ?? 0,
+      revenueChangeLowUsd: (json['revenue_change_low_usd'] as num?)?.round() ?? 0,
+      revenueChangeHighUsd: (json['revenue_change_high_usd'] as num?)?.round() ?? 0,
+      runwayDaysDeltaLow: (json['runway_days_delta_low'] as num?)?.toDouble(),
+      runwayDaysDeltaHigh: (json['runway_days_delta_high'] as num?)?.toDouble(),
       confidence: json['confidence'] as String? ?? 'medium',
       confidenceBandPct: (json['confidence_band_pct'] as num?)?.round() ?? 20,
       assumptions: (json['assumptions'] as List<dynamic>? ?? const [])
           .whereType<String>()
           .toList(),
+      assumptionItems: (json['assumption_items'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ScenarioAssumptionItem.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class ScenarioAssumptionItem {
+  const ScenarioAssumptionItem({
+    required this.key,
+    required this.label,
+    required this.value,
+    required this.editable,
+    this.unit,
+    this.description,
+  });
+
+  final String key;
+  final String label;
+  final double value;
+  final bool editable;
+  final String? unit;
+  final String? description;
+
+  factory ScenarioAssumptionItem.fromJson(Map<String, dynamic> json) {
+    return ScenarioAssumptionItem(
+      key: json['key'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      value: (json['value'] as num?)?.toDouble() ?? 0,
+      editable: json['editable'] as bool? ?? false,
+      unit: json['unit'] as String?,
+      description: json['description'] as String?,
     );
   }
 }

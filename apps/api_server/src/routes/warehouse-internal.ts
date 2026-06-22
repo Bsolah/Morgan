@@ -24,6 +24,10 @@ import {
 } from "../lib/sku-demand-forecast-service.js";
 import { generateRecommendationCandidatesForStore } from "../lib/recommendation-candidate-service.js";
 import { rankAndPromoteRecommendationCandidates } from "../lib/recommendation-ranking-service.js";
+import {
+  sendDueWeeklyEmailDigests,
+  sendWeeklyEmailDigest,
+} from "../lib/weekly-email-digest-service.js";
 
 const refreshBodySchema = z.object({
   store_id: z.string().uuid(),
@@ -35,6 +39,11 @@ const snapshotRefreshBodySchema = z.object({
 });
 
 const briefingGenerateBodySchema = z.object({
+  store_id: z.string().uuid().optional(),
+  force: z.boolean().default(false),
+});
+
+const emailDigestBodySchema = z.object({
   store_id: z.string().uuid().optional(),
   force: z.boolean().default(false),
 });
@@ -123,6 +132,28 @@ export async function registerWarehouseInternalRoutes(app: FastifyInstance): Pro
 
     const generatedCount = await generateDueDailyBriefings(db);
     return reply.send({ status: "generated", generated_count: generatedCount });
+  });
+
+  app.post("/api/v1/internal/email-digest/send", async (request, reply) => {
+    const internalKey = request.headers["x-compliance-internal-key"];
+    if (!env.COMPLIANCE_INTERNAL_KEY || internalKey !== env.COMPLIANCE_INTERNAL_KEY) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const db = (await import("../lib/db.js")).getDb();
+    if (!db) {
+      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
+    }
+
+    const body = emailDigestBodySchema.parse(request.body ?? {});
+
+    if (body.store_id) {
+      const result = await sendWeeklyEmailDigest(db, body.store_id, { force: body.force });
+      return reply.send({ status: "processed", results: [result] });
+    }
+
+    const sentCount = await sendDueWeeklyEmailDigests(db);
+    return reply.send({ status: "processed", sent_count: sentCount });
   });
 
   app.post("/api/v1/internal/profit-leaks/scan", async (request, reply) => {

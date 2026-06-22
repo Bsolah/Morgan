@@ -4,6 +4,7 @@ import {
   buildKpiDelta,
   composeTemplateBrief,
   extractNumericTokens,
+  formatTopKpiDeltaForPush,
   metricValuesWithinTolerance,
   parseBriefingTimeLocal,
   shouldGenerateDailyBriefing,
@@ -144,5 +145,21 @@ describe("template brief composer", () => {
     expect(output.headline.length).toBeLessThanOrEqual(140);
     expect(output.narrative).toContain("4,280");
     expect(output.narrative).toContain("Pause underperforming campaign");
+  });
+});
+
+describe("formatTopKpiDeltaForPush", () => {
+  it("uses the first KPI delta for push body copy", () => {
+    expect(
+      formatTopKpiDeltaForPush([
+        buildKpiDelta({
+          key: "contribution_margin_7d",
+          label: "Contribution profit (7d)",
+          value: 4280,
+          priorValue: 3820,
+          format: "currency",
+        }),
+      ]),
+    ).toBe("Contribution profit (7d): $4,280 (+12.0% vs prior week)");
   });
 });

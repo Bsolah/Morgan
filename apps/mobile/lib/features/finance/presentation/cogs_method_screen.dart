@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +8,7 @@ import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../widgets/cogs_method_picker.dart';
+import '../widgets/cogs_recalculation_banner.dart';
 
 class CogsMethodScreen extends ConsumerStatefulWidget {
   const CogsMethodScreen({super.key});
@@ -25,7 +25,10 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
   bool _xeroConnected = false;
   bool _saving = false;
   bool _loaded = false;
+  bool _watchRecalculation = false;
+  bool _completionHandled = false;
   String? _saveError;
+  FinanceRecalculation? _recalculation;
 
   @override
   void initState() {
@@ -42,11 +45,29 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
         _manualPct = config.manualCogsPct;
         _quickbooksConnected = config.quickbooksConnected;
         _xeroConnected = config.xeroConnected;
+        _recalculation = config.recalculation;
+        _watchRecalculation = config.recalculation.isActive;
         _loaded = true;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _loaded = true);
+    }
+  }
+
+  void _handleRecalculationUpdate(FinanceRecalculation recalculation) {
+    if (!mounted) return;
+    setState(() => _recalculation = recalculation);
+
+    if (recalculation.status == FinanceRecalculationStatus.completed && !_completionHandled) {
+      _completionHandled = true;
+      ref.invalidate(financeConfigProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profit metrics updated with your new COGS method')),
+      );
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        if (mounted) context.pop();
+      });
     }
   }
 
@@ -63,6 +84,7 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
       _saving = true;
       _saveError = null;
       _manualPctError = null;
+      _completionHandled = false;
     });
 
     try {
@@ -77,15 +99,14 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
 
       if (!mounted) return;
 
-      if (updated.recalculationDueBy != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profit metrics will refresh within the next hour.'),
-          ),
-        );
-      }
+      setState(() {
+        _recalculation = updated.recalculation;
+        _watchRecalculation = updated.recalculation.isActive;
+      });
 
-      context.pop();
+      if (!updated.recalculation.isActive) {
+        context.pop();
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _saveError = 'Could not save COGS method. Try again.');
@@ -98,6 +119,17 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
+
+    if (_watchRecalculation) {
+      ref.listen<AsyncValue<FinanceRecalculation>>(
+        financeRecalculationPollerProvider,
+        (_, next) => next.whenData(_handleRecalculationUpdate),
+      );
+      ref.watch(financeRecalculationPollerProvider);
+    }
+
+    final recalculation = _recalculation;
+    final recalcActive = recalculation?.isActive ?? false;
 
     return Scaffold(
       backgroundColor: p.background,
@@ -126,6 +158,12 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
                     'This drives profit and margin numbers across your briefings.',
                     style: theme.textTheme.bodyLarge,
                   ),
+                  if (recalculation != null &&
+                      (recalculation.isActive ||
+                          recalculation.status == FinanceRecalculationStatus.completed)) ...[
+                    const SizedBox(height: MorganSpace.lg),
+                    CogsRecalculationBanner(recalculation: recalculation),
+                  ],
                   const SizedBox(height: MorganSpace.xl),
                   CogsMethodPicker(
                     selected: _selected,
@@ -148,8 +186,12 @@ class _CogsMethodScreenState extends ConsumerState<CogsMethodScreen> {
                   ],
                   const SizedBox(height: MorganSpace.xl),
                   MorganPrimaryButton(
-                    label: _saving ? 'Saving…' : 'Save',
-                    onPressed: _saving ? null : _save,
+                    label: _saving
+                        ? 'Saving…'
+                        : recalcActive
+                            ? 'Recalculating…'
+                            : 'Save',
+                    onPressed: _saving || recalcActive ? null : _save,
                   ),
                 ],
               ),

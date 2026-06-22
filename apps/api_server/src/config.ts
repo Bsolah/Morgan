@@ -75,6 +75,7 @@ const envSchema = z.object({
   SQL_AGENT_MAX_ROWS: z.coerce.number().default(10_000),
   SQL_AGENT_MAX_EXECUTION_MS: z.coerce.number().default(500),
   WEBHOOK_IDEMPOTENCY_TTL_SECONDS: z.coerce.number().default(86_400),
+  EVENT_PROCESSING_IDEMPOTENCY_TTL_SECONDS: z.coerce.number().default(86_400),
   ORDER_BACKFILL_DAYS: z.coerce.number().default(90),
   ORDER_BACKFILL_PARTIAL_BRIEF_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   ORDER_BACKFILL_BATCH_SIZE: z.coerce.number().min(1).max(5000).default(250),
@@ -145,6 +146,14 @@ const envSchema = z.object({
   BRIEFING_CRITICAL_CASH_OVERRIDE_DAYS: z.coerce.number().min(1).default(3),
   FCM_SERVER_KEY: optionalString,
   FCM_SEND_TIMEOUT_MS: z.coerce.number().default(10_000),
+  RESEND_API_KEY: optionalString,
+  EMAIL_FROM: z.string().default("Morgan <notifications@getmorgan.com>"),
+  WEEKLY_DIGEST_POLL_INTERVAL_MS: z.coerce.number().default(60_000),
+  METRICS_RECALC_POLL_INTERVAL_MS: z.coerce.number().default(30_000),
+  WEEKLY_DIGEST_TIME_LOCAL: z.string().default("07:00"),
+  MORGAN_POSTAL_ADDRESS: z
+    .string()
+    .default("Morgan by Cornerstone, 123 Market Street, San Francisco, CA 94105"),
 });
 
 export const env = envSchema.parse(process.env);
@@ -221,4 +230,12 @@ export function isXeroOAuthConfigured(): boolean {
 export function getXeroOAuthCallbackUrl(): string {
   const base = (env.SHOPIFY_APP_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
   return `${base}/api/v1/integrations/xero/oauth/callback`;
+}
+
+export function getAppPublicUrl(): string {
+  return (env.SHOPIFY_APP_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
+}
+
+export function isResendConfigured(): boolean {
+  return Boolean(env.RESEND_API_KEY);
 }

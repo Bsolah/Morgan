@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_controller.dart';
-import 'auth_controller.dart';
 import 'deep_link_handler.dart';
+import '../notifications/push_notification_service.dart';
 
 /// Locks the app on resume when biometric unlock is enabled.
 class AuthLifecycleObserver extends ConsumerStatefulWidget {
@@ -22,6 +22,7 @@ class _AuthLifecycleObserverState extends ConsumerState<AuthLifecycleObserver> w
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(deepLinkHandlerProvider).init();
+      ref.read(pushNotificationServiceProvider).init();
     });
   }
 
@@ -35,9 +36,19 @@ class _AuthLifecycleObserverState extends ConsumerState<AuthLifecycleObserver> w
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(authControllerProvider.notifier).lockForBiometric();
+      ref.read(pushNotificationServiceProvider).syncRegistration();
     }
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    ref.listen(authControllerProvider, (previous, next) {
+      if (next.status == AuthStatus.authenticated &&
+          previous?.status != AuthStatus.authenticated) {
+        ref.read(pushNotificationServiceProvider).syncRegistration();
+      }
+    });
+
+    return widget.child;
+  }
 }

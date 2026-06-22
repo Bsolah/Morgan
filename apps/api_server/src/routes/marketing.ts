@@ -10,9 +10,7 @@ import { getDailyBrief, getBriefForDate, listBriefingHistory } from "../lib/brie
 
 import { getBriefingHistoryForDate } from "../lib/briefing-regeneration-service.js";
 
-import { registerPushDeviceToken } from "../lib/push-notification-service.js";
-
-import { merchantLocalDay } from "@morgan/integrations";
+import { merchantLocalDay, BUDGET_REALLOCATION_WINDOW_DAYS } from "@morgan/integrations";
 
 import { loadStoreBriefingConfig } from "../lib/briefing-generation-service.js";
 
@@ -34,9 +32,11 @@ function storeIdFromAuth(request: { auth?: { store_ids: string[] } }): string | 
 
 
 const windowSchema = z.object({
-
   window_days: z.coerce.number().min(1).max(90).default(7),
+});
 
+const budgetAllocationQuerySchema = z.object({
+  window_days: z.coerce.number().min(1).max(90).default(BUDGET_REALLOCATION_WINDOW_DAYS),
 });
 
 
@@ -54,16 +54,6 @@ const campaignDetailQuerySchema = z.object({
 const briefDateParamsSchema = z.object({
 
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-
-});
-
-
-
-const deviceTokenSchema = z.object({
-
-  token: z.string().min(10).max(512),
-
-  platform: z.enum(["ios", "android", "unknown"]).default("unknown"),
 
 });
 
@@ -293,50 +283,6 @@ export async function marketingRoutes(app: FastifyInstance) {
 
 
 
-  app.post("/api/v1/notifications/device-token", { preHandler: requireAuth }, async (request, reply) => {
-
-    const storeId = storeIdFromAuth(request);
-
-    if (!storeId) {
-
-      return reply.status(400).send({ error: "No store in session" });
-
-    }
-
-
-
-    const body = deviceTokenSchema.parse(request.body ?? {});
-
-    const db = getDb();
-
-    if (!db) {
-
-      return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
-
-    }
-
-
-
-    await registerPushDeviceToken(db, {
-
-      storeId,
-
-      userId: request.auth?.sub,
-
-      token: body.token,
-
-      platform: body.platform,
-
-    });
-
-
-
-    return reply.status(204).send();
-
-  });
-
-
-
   app.get("/api/v1/marketing/overview", { preHandler: requireAuth }, async (request, reply) => {
 
     const storeId = storeIdFromAuth(request);
@@ -545,7 +491,7 @@ export async function marketingRoutes(app: FastifyInstance) {
 
 
 
-    const parsed = windowSchema.safeParse(request.query);
+    const parsed = budgetAllocationQuerySchema.safeParse(request.query);
 
     if (!parsed.success) {
 

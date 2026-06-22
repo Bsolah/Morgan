@@ -5,14 +5,16 @@ import {
   buildMarginPeriodTotals,
   computeMarginDrivers,
   DEFAULT_SHIPPING_COST_PCT,
+  DEFAULT_TARGET_MARGIN_PCT,
   merchantLocalYesterday,
   type MarginDriver,
 } from "@morgan/integrations";
 import { loadStoreBriefingConfig } from "./briefing-generation-service.js";
+import { loadTargetMarginPct } from "./finance-config-service.js";
 import { summarizeActiveProfitLeaks } from "./profit-leak-scan-service.js";
 import { getSqlAgentService } from "./sql-agent-service.js";
 
-export const DEFAULT_TARGET_MARGIN_PCT = 40;
+export { DEFAULT_TARGET_MARGIN_PCT };
 export const PROFIT_OVERVIEW_WINDOW_DAYS = 30;
 
 export type DailyMarginTrendPoint = {
@@ -165,17 +167,6 @@ async function loadShippingCostPct(db: Database, storeId: string): Promise<numbe
 
   const value = Number(config?.shippingCostPct ?? DEFAULT_SHIPPING_COST_PCT);
   return Number.isFinite(value) ? value : DEFAULT_SHIPPING_COST_PCT;
-}
-
-async function loadTargetMarginPct(db: Database, storeId: string): Promise<number> {
-  const [config] = await db
-    .select({ target: merchantFinanceConfig.targetContributionMarginPct })
-    .from(merchantFinanceConfig)
-    .where(eq(merchantFinanceConfig.storeId, storeId))
-    .limit(1);
-
-  const value = Number(config?.target ?? DEFAULT_TARGET_MARGIN_PCT);
-  return Number.isFinite(value) ? value : DEFAULT_TARGET_MARGIN_PCT;
 }
 
 function buildTrendPoints(rows: OrdersDailyRow[]): DailyMarginTrendPoint[] {

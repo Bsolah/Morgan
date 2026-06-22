@@ -22,6 +22,7 @@ export async function getIngestRuntime(): Promise<IngestRuntime> {
       clickhouseDimProductsTable: env.CLICKHOUSE_DIM_PRODUCTS_TABLE,
       clickhouseInventoryTable: env.CLICKHOUSE_INVENTORY_TABLE,
       clickhouseOrderLinesTable: env.CLICKHOUSE_ORDER_LINES_TABLE,
+      eventProcessingTtlSeconds: env.EVENT_PROCESSING_IDEMPOTENCY_TTL_SECONDS,
     }).then((created) => {
       created.startWorkers();
       runtime = created;
@@ -34,6 +35,10 @@ export async function getIngestRuntime(): Promise<IngestRuntime> {
 export function getInMemoryPublisher(): InMemoryEventPublisher | null {
   const publisher = runtime?.publisher;
   return publisher instanceof InMemoryEventPublisher ? publisher : null;
+}
+
+export function getEventProcessingMetrics() {
+  return runtime?.eventProcessingMetrics ?? null;
 }
 
 export function resetIngestRuntimeForTests(): void {

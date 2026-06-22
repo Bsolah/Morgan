@@ -9,11 +9,19 @@ import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'integration_card_shared.dart';
 
 class XeroIntegrationCard extends ConsumerStatefulWidget {
-  const XeroIntegrationCard({super.key, required this.status});
+  const XeroIntegrationCard({
+    super.key,
+    required this.status,
+    this.dataCoveragePct = 0,
+    this.comingSoon = false,
+  });
 
   final XeroIntegrationStatus status;
+  final int dataCoveragePct;
+  final bool comingSoon;
 
   @override
   ConsumerState<XeroIntegrationCard> createState() => _XeroIntegrationCardState();
@@ -48,12 +56,14 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
       final status = uri.queryParameters['xero_status'];
       if (status == 'select_tenant') {
         ref.invalidate(xeroIntegrationStatusProvider);
+        ref.invalidate(integrationsHubProvider);
         await _showTenantPicker();
         return;
       }
 
       if (status == 'connected') {
         ref.invalidate(xeroIntegrationStatusProvider);
+        ref.invalidate(integrationsHubProvider);
       }
     } catch (_) {
       setState(() => _actionError = xeroOAuthErrorMessage('server_error'));
@@ -106,6 +116,7 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
     try {
       await repo.selectXeroTenant(selected);
       ref.invalidate(xeroIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not select that Xero organisation.');
     } finally {
@@ -122,6 +133,7 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
     try {
       await ref.read(integrationsRepositoryProvider).disconnectXero();
       ref.invalidate(xeroIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not disconnect Xero.');
     } finally {
@@ -134,9 +146,7 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
     final p = context.morgan;
     final theme = Theme.of(context);
     final status = widget.status;
-    final lastSyncLabel = status.lastSyncAt != null
-        ? DateFormat.yMMMd().add_jm().format(status.lastSyncAt!.toLocal())
-        : 'Never';
+    final comingSoon = widget.comingSoon;
 
     final displayError = _actionError ??
         (status.status == IntegrationStatus.error ? status.errorMessage : null);
@@ -147,17 +157,24 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
         children: [
           Row(
             children: [
-              Icon(Icons.receipt_long_outlined, color: p.accent),
+              IntegrationStatusIcon(status: status.status),
+              const SizedBox(width: MorganSpace.sm),
+              Icon(Icons.receipt_long_outlined, color: p.accent, size: 20),
               const SizedBox(width: MorganSpace.sm),
               Expanded(
                 child: Text('Xero', style: theme.textTheme.titleMedium),
               ),
-              _XeroStatusChip(status: status.status),
+              if (comingSoon)
+                const IntegrationComingSoonBadge()
+              else
+                IntegrationStatusChip(status: status.status),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
           Text(
-            'Sync P&L, bank transactions, and invoices from Xero for UK profit insights.',
+            comingSoon
+                ? 'Xero support is on the roadmap for UK profit insights.'
+                : 'Sync P&L, bank transactions, and invoices from Xero for UK profit insights.',
             style: theme.textTheme.bodySmall,
           ),
           if (status.tenantName != null)
@@ -167,73 +184,48 @@ class _XeroIntegrationCardState extends ConsumerState<XeroIntegrationCard> {
               'Reconnection due by ${DateFormat.yMMMd().format(status.reauthDueAt!.toLocal())}',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
-          if (status.isConnected)
-            Text('Last sync: $lastSyncLabel', style: theme.textTheme.bodySmall),
           if (status.isConnected && !status.booksInitialSyncCompleted)
             Text(
               'Syncing month-to-date P&L, bank transactions, and invoices…',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
+          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
           if (displayError != null) ...[
             const SizedBox(height: MorganSpace.xs),
             Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
           ],
           const SizedBox(height: MorganSpace.md),
-          if (status.needsTenantSelection)
-            MorganPrimaryButton(
-              label: 'Select organisation',
-              onPressed: _connecting ? null : _showTenantPicker,
-            )
-          else if (status.status == IntegrationStatus.disconnected)
-            MorganPrimaryButton(
-              label: _connecting ? 'Connecting…' : 'Connect',
-              onPressed: _connecting ? null : _connectXero,
-            )
-          else if (status.status == IntegrationStatus.error || status.needsReauth)
-            MorganPrimaryButton(
-              label: _connecting ? 'Reconnecting…' : 'Reconnect',
-              onPressed: _connecting ? null : _connectXero,
-            )
-          else ...[
-            TextButton(
-              onPressed: () => context.push('/settings/integrations/xero/mapping'),
-              child: const Text('Map accounts'),
-            ),
-            TextButton(
-              onPressed: _disconnecting ? null : _disconnectXero,
-              child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
-            ),
+          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
+          if (!comingSoon) ...[
+            const SizedBox(height: MorganSpace.md),
+            if (status.needsTenantSelection)
+              MorganPrimaryButton(
+                label: 'Select organisation',
+                onPressed: _connecting ? null : _showTenantPicker,
+              )
+            else if (status.status == IntegrationStatus.disconnected)
+              MorganPrimaryButton(
+                label: _connecting ? 'Connecting…' : 'Connect',
+                onPressed: _connecting ? null : _connectXero,
+              )
+            else if (status.status == IntegrationStatus.error || status.needsReauth)
+              MorganPrimaryButton(
+                label: _connecting ? 'Reconnecting…' : 'Reconnect',
+                onPressed: _connecting ? null : _connectXero,
+              )
+            else ...[
+              TextButton(
+                onPressed: () => context.push('/settings/integrations/xero/mapping'),
+                child: const Text('Map accounts'),
+              ),
+              TextButton(
+                onPressed: _disconnecting ? null : _disconnectXero,
+                child: Text(_disconnecting ? 'Disconnecting…' : 'Disconnect'),
+              ),
+            ],
           ],
         ],
       ),
-    );
-  }
-}
-
-class _XeroStatusChip extends StatelessWidget {
-  const _XeroStatusChip({required this.status});
-
-  final IntegrationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    final (label, color) = switch (status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected => ('Disconnected', p.textMuted),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(MorganRadius.pill),
-      ),
-      child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
     );
   }
 }

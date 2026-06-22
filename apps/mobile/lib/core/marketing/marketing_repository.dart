@@ -558,6 +558,98 @@ class CampaignDetailKey {
 
 
 
+class BudgetReallocationScenario {
+  const BudgetReallocationScenario({
+    required this.channel,
+    required this.fromCampaign,
+    required this.toCampaign,
+    required this.amount,
+    required this.projectedProfitDelta,
+    required this.sourceMarginalPoas,
+    required this.targetMarginalPoas,
+  });
+
+  final String channel;
+  final String fromCampaign;
+  final String toCampaign;
+  final int amount;
+  final int projectedProfitDelta;
+  final double sourceMarginalPoas;
+  final double targetMarginalPoas;
+
+  factory BudgetReallocationScenario.fromJson(Map<String, dynamic> json) {
+    return BudgetReallocationScenario(
+      channel: json['channel'] as String? ?? '',
+      fromCampaign: json['from_campaign'] as String? ?? json['from_campaign_name'] as String? ?? '',
+      toCampaign: json['to_campaign'] as String? ?? json['to_campaign_name'] as String? ?? '',
+      amount: (json['amount'] as num?)?.round() ?? (json['amount_usd'] as num?)?.round() ?? 0,
+      projectedProfitDelta: (json['projected_profit_delta'] as num?)?.round() ??
+          (json['projected_profit_delta_monthly_usd'] as num?)?.round() ??
+          0,
+      sourceMarginalPoas: (json['source_marginal_poas'] as num?)?.toDouble() ?? 0,
+      targetMarginalPoas: (json['target_marginal_poas'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class MarginalPoasCurve {
+  const MarginalPoasCurve({
+    required this.campaignId,
+    required this.campaignName,
+    required this.marginalPoas30d,
+    required this.curvePoints,
+  });
+
+  final String campaignId;
+  final String campaignName;
+  final double marginalPoas30d;
+  final int curvePoints;
+
+  factory MarginalPoasCurve.fromJson(Map<String, dynamic> json) {
+    final points = json['curve_points'] as List<dynamic>? ?? const [];
+    return MarginalPoasCurve(
+      campaignId: json['campaign_id'] as String? ?? '',
+      campaignName: json['campaign_name'] as String? ?? '',
+      marginalPoas30d: (json['marginal_poas_30d'] as num?)?.toDouble() ?? 0,
+      curvePoints: points.length,
+    );
+  }
+}
+
+class MarketingBudgetAllocation {
+  const MarketingBudgetAllocation({
+    required this.windowDays,
+    required this.totalBudgetUsd,
+    required this.scenarios,
+    required this.marginalPoasCurves,
+    required this.suggestOnly,
+  });
+
+  final int windowDays;
+  final int totalBudgetUsd;
+  final List<BudgetReallocationScenario> scenarios;
+  final List<MarginalPoasCurve> marginalPoasCurves;
+  final bool suggestOnly;
+
+  factory MarketingBudgetAllocation.fromJson(Map<String, dynamic> json) {
+    final scenariosJson = json['reallocation_scenarios'] as List<dynamic>? ?? const [];
+    final curvesJson = json['marginal_poas_curves'] as List<dynamic>? ?? const [];
+    return MarketingBudgetAllocation(
+      windowDays: (json['window_days'] as num?)?.toInt() ?? 30,
+      totalBudgetUsd: (json['total_budget_usd'] as num?)?.round() ?? 0,
+      scenarios: scenariosJson
+          .whereType<Map<String, dynamic>>()
+          .map(BudgetReallocationScenario.fromJson)
+          .toList(),
+      marginalPoasCurves: curvesJson
+          .whereType<Map<String, dynamic>>()
+          .map(MarginalPoasCurve.fromJson)
+          .toList(),
+      suggestOnly: json['suggest_only'] as bool? ?? true,
+    );
+  }
+}
+
 class MarketingRepository {
 
   MarketingRepository(this._dio);
@@ -609,6 +701,14 @@ class MarketingRepository {
   }
 
 
+
+  Future<MarketingBudgetAllocation?> getBudgetAllocation({int windowDays = 30}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/v1/marketing/budget-allocation',
+      queryParameters: {'window_days': windowDays},
+    );
+    return MarketingBudgetAllocation.fromJson(response.data!);
+  }
 
   Future<MarketingMerResponse> getMer({int windowDays = 30, int trendDays = 30}) async {
 
@@ -668,7 +768,9 @@ final marketingMerProvider = FutureProvider.autoDispose<MarketingMerResponse>((r
 
 });
 
-
+final marketingBudgetAllocationProvider = FutureProvider.autoDispose<MarketingBudgetAllocation?>((ref) async {
+  return ref.watch(marketingRepositoryProvider).getBudgetAllocation();
+});
 
 String formatMarketingRatio(double? value) {
 

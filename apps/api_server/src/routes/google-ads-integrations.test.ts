@@ -80,7 +80,18 @@ describe("google ads integration routes", () => {
     }
 
     expect(res.statusCode).toBe(200);
-    const providers = (res.json().integrations as Array<{ provider: string }>).map((item) => item.provider);
-    expect(providers).toContain("google_ads");
+    const body = res.json() as {
+      integrations: Array<{
+        provider: string;
+        data_coverage_pct: number;
+        details: Record<string, unknown>;
+      }>;
+    };
+    const googleAdsCard = body.integrations.find((item) => item.provider === "google_ads");
+    expect(googleAdsCard).toMatchObject({
+      provider: "google_ads",
+      data_coverage_pct: expect.any(Number),
+    });
+    expect(googleAdsCard?.details).toBeDefined();
   });
 });

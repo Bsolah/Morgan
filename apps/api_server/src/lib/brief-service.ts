@@ -1,7 +1,7 @@
 import type { Database } from "@morgan/db";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { dailyBriefings } from "@morgan/db";
-import { addDays, merchantLocalDay, shouldGenerateDailyBriefing, computeNextBriefingAt } from "@morgan/integrations";
+import { addDays, merchantLocalDay, shouldGenerateDailyBriefing } from "@morgan/integrations";
 import type { BriefingKpiDelta, BriefingSummaryJson, BriefingTopAction } from "@morgan/integrations";
 import {
   generateDailyBriefing,
@@ -9,6 +9,7 @@ import {
   loadStoreBriefingConfig,
 } from "./briefing-generation-service.js";
 import { getMarketingOverview } from "./poas-service.js";
+import { loadResolvedBriefingSchedule } from "./briefing-schedule-service.js";
 
 export type BriefingHistoryListItem = {
   date: string;
@@ -47,11 +48,12 @@ export type DailyBriefView = {
   };
 };
 
-async function loadStoreTimezone(db: Database, storeId: string): Promise<{ timezone: string; briefingTimeLocal: string }> {
-  const config = await loadStoreBriefingConfig(db, storeId);
+async function loadStoreSchedule(db: Database, storeId: string) {
+  const resolved = await loadResolvedBriefingSchedule(db, storeId);
   return {
-    timezone: config?.timezone ?? "UTC",
-    briefingTimeLocal: config?.briefingTimeLocal ?? "06:00",
+    timezone: resolved?.timezone ?? "UTC",
+    briefingTimeLocal: resolved?.briefingTimeLocal ?? "06:00",
+    nextBriefingAt: resolved?.nextBriefingAt ?? new Date().toISOString(),
   };
 }
 
@@ -100,20 +102,15 @@ async function attachMarketing(
 }
 
 export async function getDailyBrief(db: Database, storeId: string): Promise<DailyBriefView> {
-  const { timezone, briefingTimeLocal } = await loadStoreTimezone(db, storeId);
-  const today = merchantLocalDay(timezone);
-  const schedule = {
-    timezone,
-    briefingTimeLocal,
-    nextBriefingAt: computeNextBriefingAt(timezone, briefingTimeLocal),
-  };
+  const schedule = await loadStoreSchedule(db, storeId);
+  const today = merchantLocalDay(schedule.timezone);
 
   let row = await getBriefingForDate(db, storeId, today);
   if (
     !row &&
     shouldGenerateDailyBriefing({
-      timezone,
-      briefingTimeLocal,
+      timezone: schedule.timezone,
+      briefingTimeLocal: schedule.briefingTimeLocal,
       lastBriefingDate: null,
     })
   ) {
@@ -160,12 +157,7 @@ export async function getBriefForDate(
   storeId: string,
   briefingDate: string,
 ): Promise<DailyBriefView | null> {
-  const { timezone, briefingTimeLocal } = await loadStoreTimezone(db, storeId);
-  const schedule = {
-    timezone,
-    briefingTimeLocal,
-    nextBriefingAt: computeNextBriefingAt(timezone, briefingTimeLocal),
-  };
+  const schedule = await loadStoreSchedule(db, storeId);
 
   const row = await getBriefingForDate(db, storeId, briefingDate);
   if (!row) return null;

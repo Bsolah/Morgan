@@ -144,14 +144,28 @@ export async function integrationsRoutes(app: FastifyInstance) {
         encryptionKey: env.ENCRYPTION_KEY,
       });
 
+      if (!result.needsAccountSelection) {
+        setImmediate(() => {
+          void syncMetaInsightsForStore(db, pending.storeId).catch((error) => {
+            request.log.error(error, "Meta insights sync after OAuth reconnect failed");
+          });
+        });
+      }
+
+      const metaStatus = result.needsAccountSelection
+        ? "select_account"
+        : result.reconnected
+          ? "reconnected"
+          : "connected";
+
       if (pending.platform === "mobile") {
         return redirectMobile(reply, "integrations/meta", {
-          meta_status: result.needsAccountSelection ? "select_account" : "connected",
+          meta_status: metaStatus,
         });
       }
 
       return reply.send({
-        status: result.needsAccountSelection ? "select_account" : "connected",
+        status: metaStatus,
       });
     } catch (err) {
       request.log.error(err, "Meta OAuth callback failed");

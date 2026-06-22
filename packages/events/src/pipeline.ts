@@ -1,6 +1,16 @@
 import type { EventEnvelope } from "@morgan/shared";
-import type { BronzeStorage, DeadLetterStorage, EventPublisher } from "./types.js";
-import { withRetries } from "./types.js";
+import {
+  DEFAULT_EVENT_PROCESSING_TTL_SECONDS,
+  EventProcessingMetrics,
+  processEventIdempotently,
+} from "./event-processing.js";
+import type {
+  BronzeStorage,
+  DeadLetterStorage,
+  EventPublisher,
+  IdempotencyStore,
+  OrderProcessor,
+} from "./types.js";
 
 export class EventPipeline {
   constructor(
@@ -17,7 +27,11 @@ export class EventPipeline {
   }
 }
 
-export type OrderProcessor = (event: EventEnvelope) => Promise<void>;
+export type OrderIngestWorkerOptions = {
+  idempotency: IdempotencyStore;
+  metrics: EventProcessingMetrics;
+  idempotencyTtlSeconds?: number;
+};
 
 export class OrderIngestWorker {
   constructor(
@@ -25,6 +39,7 @@ export class OrderIngestWorker {
     private readonly processor: OrderProcessor,
     private readonly deadLetter: DeadLetterStorage,
     private readonly topic: string,
+    private readonly options: OrderIngestWorkerOptions,
   ) {}
 
   start(): void {
@@ -33,12 +48,18 @@ export class OrderIngestWorker {
     });
   }
 
-  async handle(event: EventEnvelope): Promise<void> {
-    try {
-      await withRetries(() => this.processor(event), { maxAttempts: 3, baseDelayMs: 250 });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown processing error";
-      await this.deadLetter.write(this.topic, event, message, 3);
-    }
+  async handle(event: EventEnvelope) {
+    return processEventIdempotently({
+      topic: this.topic,
+      event,
+      idempotency: this.options.idempotency,
+      metrics: this.options.metrics,
+      processor: this.processor,
+      deadLetter: this.deadLetter,
+      idempotencyTtlSeconds:
+        this.options.idempotencyTtlSeconds ?? DEFAULT_EVENT_PROCESSING_TTL_SECONDS,
+    });
   }
 }
+
+export type { OrderProcessor };

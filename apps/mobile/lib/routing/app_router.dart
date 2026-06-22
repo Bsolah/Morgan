@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/auth/biometric_unlock_screen.dart';
 import '../features/alerts/presentation/alert_detail_screen.dart';
+import '../features/finance/presentation/briefing_schedule_screen.dart';
 import '../features/finance/presentation/cogs_method_screen.dart';
+import '../features/finance/presentation/target_margin_screen.dart';
 import '../features/integrations/presentation/integrations_hub_screen.dart';
 import '../features/integrations/presentation/quickbooks_account_mapping_screen.dart';
 import '../features/integrations/presentation/xero_account_mapping_screen.dart';
@@ -28,6 +30,7 @@ import '../features/profit/presentation/profit_leak_detail_screen.dart';
 import '../features/recommendations/presentation/recommendation_detail_screen.dart';
 import '../features/recommendations/presentation/recommendations_screen.dart';
 import '../features/scenarios/presentation/scenario_planner_screen.dart';
+import '../features/settings/presentation/notification_settings_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../shared/widgets/morgan_shell.dart';
 
@@ -126,6 +129,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/cogs',
         builder: (context, state) => const CogsMethodScreen(),
+      ),
+      GoRoute(
+        path: '/settings/briefing',
+        builder: (context, state) => const BriefingScheduleScreen(),
+      ),
+      GoRoute(
+        path: '/settings/target-margin',
+        builder: (context, state) => const TargetMarginScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
       GoRoute(
         path: '/settings/integrations',

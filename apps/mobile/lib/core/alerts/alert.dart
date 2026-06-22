@@ -2,7 +2,7 @@ enum AlertSeverity { info, warning, critical }
 
 enum AlertSeverityFilter { all, warnings, critical }
 
-enum AlertType { marginDrop, adWaste, stockoutRisk, cashCrunch }
+enum AlertType { marginDrop, adWaste, stockoutRisk, cashCrunch, refundSpike }
 
 class AlertLinks {
   const AlertLinks({
@@ -80,6 +80,7 @@ class Alert {
         'ad_waste' => AlertType.adWaste,
         'stockout_risk' => AlertType.stockoutRisk,
         'cash_crunch' => AlertType.cashCrunch,
+        'refund_spike' => AlertType.refundSpike,
         _ => AlertType.marginDrop,
       };
 }

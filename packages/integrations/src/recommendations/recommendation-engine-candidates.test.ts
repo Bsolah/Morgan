@@ -109,35 +109,64 @@ describe("recommendation engine candidates", () => {
   });
 
   it("emits marketing budget reallocation candidates", () => {
-    const candidates = buildMarketingEngineCandidates(
-      [
+    const dailyRows = [];
+    for (let day = 1; day <= 30; day += 1) {
+      const dayStr = `2026-06-${String(day).padStart(2, "0")}`;
+      dailyRows.push({
+        channel: "meta",
+        campaign_id: "cmp-low",
+        campaign_name: "Retargeting",
+        day: dayStr,
+        ad_spend: 100,
+        attributed_revenue: 80,
+        attributed_contribution_margin: 50,
+      });
+      dailyRows.push({
+        channel: "meta",
+        campaign_id: "cmp-high",
+        campaign_name: "Prospecting",
+        day: dayStr,
+        ad_spend: 120,
+        attributed_revenue: 480,
+        attributed_contribution_margin: 360,
+      });
+    }
+
+    const candidates = buildMarketingEngineCandidates({
+      campaigns: [
         {
           channel: "meta",
           campaign_id: "cmp-low",
           campaign_name: "Retargeting",
-          ad_spend: 400,
-          attributed_revenue: 300,
-          attributed_contribution_margin: 200,
+          ad_spend: 3000,
+          attributed_revenue: 2400,
+          attributed_contribution_margin: 1500,
           poas: 0.5,
         },
         {
           channel: "meta",
           campaign_id: "cmp-high",
           campaign_name: "Prospecting",
-          ad_spend: 600,
-          attributed_revenue: 1800,
-          attributed_contribution_margin: 1500,
-          poas: 2.5,
+          ad_spend: 3600,
+          attributed_revenue: 14400,
+          attributed_contribution_margin: 10800,
+          poas: 3,
         },
       ],
-      "2026-06-19",
-    );
+      dailyRows,
+      referenceDay: "2026-06-30",
+    });
 
-    expect(candidates).toHaveLength(1);
+    expect(candidates.length).toBeGreaterThan(0);
     expect(candidates[0]).toMatchObject({
       engine: "marketing",
       category: "budget_reallocation",
       effort: "low",
+    });
+    expect(candidates[0]?.evidence[0]).toMatchObject({
+      from_campaign_id: expect.any(String),
+      to_campaign_id: expect.any(String),
+      projected_profit_delta_monthly_usd: expect.any(Number),
     });
   });
 });

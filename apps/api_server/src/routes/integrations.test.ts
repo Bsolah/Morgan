@@ -83,6 +83,7 @@ describe("integrations routes", () => {
       provider: "meta",
       status: "disconnected",
       needs_account_selection: false,
+      needs_reauth: false,
       insights_backfill_completed: false,
     });
   });

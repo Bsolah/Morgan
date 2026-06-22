@@ -15,6 +15,8 @@ export function conflictGroupForCategory(category: string): ConflictGroup | null
       return "stock_down";
     case "discount_bleed":
       return "price_down";
+    case "price_decrease":
+      return "price_down";
     case "price_increase":
       return "price_up";
     default:

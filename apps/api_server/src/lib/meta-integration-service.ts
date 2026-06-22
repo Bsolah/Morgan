@@ -14,7 +14,9 @@ import {
   exchangeAuthorizationCode,
   exchangeForLongLivedToken,
   fetchMetaAdAccounts,
+  META_TOKEN_EXPIRED_MESSAGE,
   refreshLongLivedToken,
+  resolveMetaIntegrationErrorMessage,
   revokeMetaAccessToken,
   type MetaAdAccount,
 } from "@morgan/integrations";
@@ -36,6 +38,7 @@ export type MetaIntegrationCard = {
   ad_account_id: string | null;
   ad_account_name: string | null;
   needs_account_selection: boolean;
+  needs_reauth: boolean;
   insights_backfill_completed: boolean;
 };
 
@@ -207,6 +210,7 @@ export async function getMetaIntegrationForStore(
       ad_account_id: null,
       ad_account_name: null,
       needs_account_selection: false,
+      needs_reauth: false,
       insights_backfill_completed: false,
     };
   }
@@ -225,18 +229,39 @@ export async function getMetaIntegrationForStore(
     )
     .limit(1);
 
+  const refreshFailureCount = state?.refreshFailureCount ?? 0;
+  const { needsReauth, errorMessage } = resolveMetaIntegrationErrorMessage({
+    status: integration.status,
+    refreshFailureCount,
+    lastError: state?.lastError ?? null,
+  });
+
   return {
     provider: "meta",
-    status: integration.status,
+    status: needsReauth ? "error" : integration.status,
     last_sync_at: integration.lastSyncAt?.toISOString() ?? null,
     last_successful_sync_at: integration.lastSyncAt?.toISOString() ?? null,
-    error_message: state?.lastError ?? null,
+    error_message: errorMessage,
     sync_error_message: state?.lastInsightsError ?? null,
     ad_account_id: selectedAccount?.externalId ?? null,
     ad_account_name: selectedAccount?.name ?? null,
     needs_account_selection: state?.pendingAccountSelection ?? false,
+    needs_reauth: needsReauth,
     insights_backfill_completed: state?.insightsBackfillCompleted ?? false,
   };
+}
+
+async function getSelectedMetaAdAccountExternalId(
+  db: Database,
+  integrationId: string,
+): Promise<string | null> {
+  const [account] = await db
+    .select({ externalId: metaAdAccounts.externalId })
+    .from(metaAdAccounts)
+    .where(and(eq(metaAdAccounts.integrationId, integrationId), eq(metaAdAccounts.isSelected, true)))
+    .limit(1);
+
+  return account?.externalId ?? null;
 }
 
 export async function completeMetaOAuth(
@@ -250,7 +275,20 @@ export async function completeMetaOAuth(
     scopes: string;
     encryptionKey: string;
   },
-): Promise<{ needsAccountSelection: boolean; accountCount: number }> {
+): Promise<{ needsAccountSelection: boolean; accountCount: number; reconnected: boolean }> {
+  const [existingIntegration] = await db
+    .select({ id: integrations.id, status: integrations.status })
+    .from(integrations)
+    .where(and(eq(integrations.storeId, input.storeId), eq(integrations.provider, "meta")))
+    .limit(1);
+
+  const previousSelectedAccountId = existingIntegration
+    ? await getSelectedMetaAdAccountExternalId(db, existingIntegration.id)
+    : null;
+  const isReconnect = Boolean(
+    existingIntegration && existingIntegration.status !== "disconnected",
+  );
+
   const shortToken = await exchangeAuthorizationCode({
     appId: input.appId,
     appSecret: input.appSecret,
@@ -286,6 +324,18 @@ export async function completeMetaOAuth(
 
   await replaceDiscoveredAdAccounts(db, integrationId, adAccounts);
 
+  const restoredAccountId =
+    isReconnect &&
+    previousSelectedAccountId &&
+    adAccounts.some((account) => account.id === previousSelectedAccountId)
+      ? previousSelectedAccountId
+      : null;
+
+  if (restoredAccountId) {
+    await selectMetaAdAccount(db, input.storeId, restoredAccountId);
+    return { needsAccountSelection: false, accountCount: adAccounts.length, reconnected: true };
+  }
+
   const needsAccountSelection = adAccounts.length > 1;
 
   if (needsAccountSelection) {
@@ -304,11 +354,11 @@ export async function completeMetaOAuth(
       .set({ status: "syncing" })
       .where(eq(integrations.id, integrationId));
 
-    return { needsAccountSelection: true, accountCount: adAccounts.length };
+    return { needsAccountSelection: true, accountCount: adAccounts.length, reconnected: isReconnect };
   }
 
   await selectMetaAdAccount(db, input.storeId, adAccounts[0]!.id);
-  return { needsAccountSelection: false, accountCount: 1 };
+  return { needsAccountSelection: false, accountCount: adAccounts.length, reconnected: isReconnect };
 }
 
 export async function listMetaAdAccounts(db: Database, storeId: string) {
@@ -541,20 +591,21 @@ async function recordMetaRefreshFailure(
     .limit(1);
 
   const failureCount = (state?.refreshFailureCount ?? 0) + 1;
+  const errorMessage = failureCount >= 2 ? META_TOKEN_EXPIRED_MESSAGE : message;
 
   await db
     .insert(metaIntegrationState)
     .values({
       integrationId,
       refreshFailureCount: failureCount,
-      lastError: message,
+      lastError: errorMessage,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: metaIntegrationState.integrationId,
       set: {
         refreshFailureCount: failureCount,
-        lastError: message,
+        lastError: errorMessage,
         updatedAt: new Date(),
       },
     });
@@ -572,7 +623,7 @@ async function recordMetaRefreshFailure(
         severity: "warning",
         type: "meta_token_expired",
         title: "Meta Ads connection needs attention",
-        body: "We could not refresh your Meta access token. Reconnect Meta Ads in Integrations to resume ad sync.",
+        body: `${META_TOKEN_EXPIRED_MESSAGE}. Reconnect Meta Ads in Integrations to resume ad sync.`,
         dedupeKey: "meta_token_refresh_failed",
       })
       .onConflictDoNothing();

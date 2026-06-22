@@ -1,5 +1,11 @@
 import type { CampaignPoasInput } from "../../marketing/budget-allocation.js";
 import {
+  BUDGET_REALLOCATION_WINDOW_DAYS,
+  simulateBudgetReallocationScenarios,
+  type BudgetShiftScenario,
+} from "../../marketing/budget-reallocation.js";
+import type { CampaignDailyMetrics } from "../../marketing/poas.js";
+import {
   buildCandidateImpact,
   buildSimilarityHash,
   candidateExpiresAt,
@@ -7,89 +13,109 @@ import {
 } from "../recommendation-candidate.js";
 
 const BUDGET_REALLOCATION_CATEGORY = "budget_reallocation";
-const MIN_SHIFT_SOURCE_SPEND_USD = 100;
-const MIN_POAS_GAP = 0.75;
-const MIN_TARGET_POAS = 1.25;
+const CHANNEL_BUDGET_CATEGORY = "channel_budget_optimization";
 
-function groupCampaignsByChannel(
-  campaigns: CampaignPoasInput[],
-): Map<string, CampaignPoasInput[]> {
-  const grouped = new Map<string, CampaignPoasInput[]>();
-  for (const campaign of campaigns) {
-    const rows = grouped.get(campaign.channel) ?? [];
-    rows.push(campaign);
-    grouped.set(campaign.channel, rows);
-  }
-  return grouped;
+export function buildMarketingEngineCandidates(input: {
+  campaigns: CampaignPoasInput[];
+  dailyRows: Array<CampaignDailyMetrics & { channel: string }>;
+  referenceDay: string;
+  windowDays?: number;
+}): RecommendationCandidate[] {
+  const windowDays = input.windowDays ?? BUDGET_REALLOCATION_WINDOW_DAYS;
+  const totalBudgetUsd = input.campaigns.reduce((sum, row) => sum + row.ad_spend, 0);
+  const scenarios = simulateBudgetReallocationScenarios({
+    campaigns: input.campaigns,
+    dailyRows: input.dailyRows,
+    windowDays,
+    referenceDay: input.referenceDay,
+    totalBudgetUsd,
+  });
+
+  return scenarios.map((scenario) => scenarioToCandidate(scenario, input.referenceDay));
 }
 
-function projectedProfitDeltaUsd(
-  shiftAmountUsd: number,
-  sourcePoas: number,
-  targetPoas: number,
-): number {
-  const sourceProfit = shiftAmountUsd * sourcePoas;
-  const targetProfit = shiftAmountUsd * targetPoas;
-  return Math.max(0, targetProfit - sourceProfit);
-}
-
-export function buildMarketingEngineCandidates(
-  campaigns: CampaignPoasInput[],
+function scenarioToCandidate(
+  scenario: BudgetShiftScenario,
   referenceDay: string,
-): RecommendationCandidate[] {
-  const candidates: RecommendationCandidate[] = [];
+): RecommendationCandidate {
+  const impact = buildCandidateImpact(scenario.projected_profit_delta_monthly_usd);
+  const subject = `${scenario.channel}|${scenario.from_campaign_id}|${scenario.to_campaign_id}|${scenario.amount_usd}`;
 
-  for (const [channel, channelCampaigns] of groupCampaignsByChannel(campaigns)) {
-    const spendEligible = channelCampaigns.filter((row) => row.ad_spend > 0);
-    if (spendEligible.length < 2) continue;
+  return {
+    engine: "marketing",
+    category: BUDGET_REALLOCATION_CATEGORY,
+    title: `Shift $${Math.round(scenario.amount_usd).toLocaleString("en-US")} to ${scenario.to_campaign_name}`,
+    body: `Move $${Math.round(scenario.amount_usd).toLocaleString("en-US")}/mo from ${scenario.from_campaign_name} (marginal POAS ${scenario.source_marginal_poas.toFixed(2)}) to ${scenario.to_campaign_name} (marginal POAS ${scenario.target_marginal_poas.toFixed(2)}). Projected +$${scenario.projected_profit_delta_monthly_usd.toLocaleString("en-US")}/mo contribution profit.`,
+    impact_low: impact.impact_low,
+    impact_high: impact.impact_high,
+    confidence: "medium",
+    effort: "low",
+    evidence: [
+      {
+        channel: scenario.channel,
+        from_campaign_id: scenario.from_campaign_id,
+        from_campaign_name: scenario.from_campaign_name,
+        to_campaign_id: scenario.to_campaign_id,
+        to_campaign_name: scenario.to_campaign_name,
+        amount_usd: scenario.amount_usd,
+        projected_profit_delta_monthly_usd: scenario.projected_profit_delta_monthly_usd,
+        source_marginal_poas: scenario.source_marginal_poas,
+        target_marginal_poas: scenario.target_marginal_poas,
+      },
+    ],
+    expires_at: candidateExpiresAt(referenceDay),
+    similarity_hash: buildSimilarityHash(BUDGET_REALLOCATION_CATEGORY, subject),
+    subject_sku: null,
+    source_key: subject,
+  };
+}
 
-    const sorted = [...spendEligible].sort((left, right) => (left.poas ?? -1) - (right.poas ?? -1));
-    const source = sorted.find(
+export function buildChannelBudgetOptimizationCandidate(input: {
+  recommendations: Array<{
+    channel: string;
+    current_spend_usd: number;
+    recommended_spend_usd: number;
+    poas: number | null;
+    projected_margin_usd: number;
+  }>;
+  projected_total_margin_usd: number;
+  referenceDay: string;
+}): RecommendationCandidate | null {
+  if (input.recommendations.length < 2) return null;
+
+  const impact = buildCandidateImpact(input.projected_total_margin_usd);
+  const shiftSummary = input.recommendations
+    .filter((row) => row.recommended_spend_usd !== row.current_spend_usd)
+    .map(
       (row) =>
-        row.ad_spend >= MIN_SHIFT_SOURCE_SPEND_USD &&
-        row.poas != null &&
-        row.poas < 1,
-    );
-    const target = [...sorted]
-      .reverse()
-      .find((row) => row.poas != null && row.poas >= MIN_TARGET_POAS);
+        `${row.channel}: $${row.current_spend_usd.toLocaleString("en-US")} → $${row.recommended_spend_usd.toLocaleString("en-US")}`,
+    )
+    .join("; ");
 
-    if (!source || !target || source.campaign_id === target.campaign_id) continue;
-    if ((target.poas ?? 0) - (source.poas ?? 0) < MIN_POAS_GAP) continue;
+  if (!shiftSummary) return null;
 
-    const shiftAmount = Math.min(source.ad_spend, 500);
-    const impactAmount = projectedProfitDeltaUsd(shiftAmount, source.poas ?? 0, target.poas ?? 0);
-    const impact = buildCandidateImpact(impactAmount);
-    const subject = `${channel}|${source.campaign_id}|${target.campaign_id}`;
-
-    candidates.push({
-      engine: "marketing",
-      category: BUDGET_REALLOCATION_CATEGORY,
-      title: `Shift ${channel} budget to ${target.campaign_name}`,
-      body: `Move about $${Math.round(shiftAmount).toLocaleString("en-US")}/wk from ${source.campaign_name} (POAS ${(source.poas ?? 0).toFixed(2)}) to ${target.campaign_name} (POAS ${(target.poas ?? 0).toFixed(2)}).`,
-      impact_low: impact.impact_low,
-      impact_high: impact.impact_high,
-      confidence: "medium",
-      effort: "low",
-      evidence: [
-        {
-          channel,
-          source_campaign_id: source.campaign_id,
-          source_campaign_name: source.campaign_name,
-          source_poas: source.poas,
-          source_ad_spend: source.ad_spend,
-          target_campaign_id: target.campaign_id,
-          target_campaign_name: target.campaign_name,
-          target_poas: target.poas,
-          shift_amount_usd: shiftAmount,
-        },
-      ],
-      expires_at: candidateExpiresAt(referenceDay),
-      similarity_hash: buildSimilarityHash(BUDGET_REALLOCATION_CATEGORY, subject),
-      subject_sku: null,
-      source_key: subject,
-    });
-  }
-
-  return candidates;
+  return {
+    engine: "marketing",
+    category: CHANNEL_BUDGET_CATEGORY,
+    title: "Rebalance Meta and Google budget",
+    body: `LP-optimized channel allocation: ${shiftSummary}.`,
+    impact_low: impact.impact_low,
+    impact_high: impact.impact_high,
+    confidence: "medium",
+    effort: "low",
+    evidence: input.recommendations.map((row) => ({
+      channel: row.channel,
+      current_spend_usd: row.current_spend_usd,
+      recommended_spend_usd: row.recommended_spend_usd,
+      poas: row.poas,
+      projected_margin_usd: row.projected_margin_usd,
+    })),
+    expires_at: candidateExpiresAt(input.referenceDay),
+    similarity_hash: buildSimilarityHash(
+      CHANNEL_BUDGET_CATEGORY,
+      input.recommendations.map((row) => row.channel).sort().join("|"),
+    ),
+    subject_sku: null,
+    source_key: "multi_channel_budget",
+  };
 }

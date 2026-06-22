@@ -68,6 +68,10 @@ export function recommendationCategoryLabel(category: string): string {
       return "Budget reallocation";
     case "price_increase":
       return "Price increase";
+    case "price_decrease":
+      return "Price decrease";
+    case "channel_budget_optimization":
+      return "Channel budget";
     default:
       return leakTypeLabel(category);
   }

@@ -9,11 +9,17 @@ import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'integration_card_shared.dart';
 
 class PlaidBankIntegrationCard extends ConsumerStatefulWidget {
-  const PlaidBankIntegrationCard({super.key, required this.status});
+  const PlaidBankIntegrationCard({
+    super.key,
+    required this.status,
+    this.dataCoveragePct = 0,
+  });
 
   final PlaidIntegrationStatus status;
+  final int dataCoveragePct;
 
   @override
   ConsumerState<PlaidBankIntegrationCard> createState() => _PlaidBankIntegrationCardState();
@@ -51,11 +57,6 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
     return confirmed ?? false;
   }
 
-  String _formatSyncTime(DateTime value) {
-    final local = value.toLocal();
-    return '${local.month}/${local.day}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _connectPlaid() async {
     final confirmed = await _confirmPrivacyDisclosure();
     if (!confirmed || !mounted) return;
@@ -87,6 +88,7 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
 
       await repo.exchangePlaidPublicToken(publicToken);
       ref.invalidate(plaidIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,6 +107,7 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
     try {
       await ref.read(integrationsRepositoryProvider).disconnectPlaid();
       ref.invalidate(plaidIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,20 +131,18 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance_outlined, color: p.accent),
+              IntegrationStatusIcon(status: status.status),
+              const SizedBox(width: MorganSpace.sm),
+              Icon(Icons.account_balance_outlined, color: p.accent, size: 20),
               const SizedBox(width: MorganSpace.sm),
               Expanded(child: Text('Bank (Plaid)', style: theme.textTheme.titleMedium)),
-              _StatusChip(status: status.status),
+              IntegrationStatusChip(status: status.status),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
           if (status.displayLabel != null)
             Text(status.displayLabel!, style: theme.textTheme.bodySmall),
-          if (status.lastSyncAt != null)
-            Text(
-              'Last synced ${_formatSyncTime(status.lastSyncAt!)}',
-              style: theme.textTheme.bodySmall,
-            ),
+          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
           if (status.pendingUncategorizedCount > 0)
             Text(
               '${status.pendingUncategorizedCount} transactions need classification',
@@ -153,6 +154,8 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
             const SizedBox(height: MorganSpace.xs),
             Text(status.errorMessage!, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
           ],
+          const SizedBox(height: MorganSpace.md),
+          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
           const SizedBox(height: MorganSpace.md),
           if (status.status == IntegrationStatus.disconnected)
             MorganPrimaryButton(
@@ -172,34 +175,6 @@ class _PlaidBankIntegrationCardState extends ConsumerState<PlaidBankIntegrationC
           ],
         ],
       ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final IntegrationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    final (label, color) = switch (status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected => ('Disconnected', p.textMuted),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(MorganRadius.pill),
-      ),
-      child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
     );
   }
 }

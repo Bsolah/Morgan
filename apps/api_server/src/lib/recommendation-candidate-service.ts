@@ -8,12 +8,16 @@ import {
   buildInventoryEngineCandidates,
   buildLeakEngineCandidates,
   buildMarketingEngineCandidates,
+  buildChannelBudgetOptimizationCandidate,
   buildDeadStockLiquidationCandidates,
+  buildPriceDecreaseCandidates,
+  buildPriceIncreaseCandidates,
   dedupeRecommendationCandidates,
   RECOMMENDATION_CANDIDATE_DEDUPE_WINDOW_DAYS,
   type DeadStockEvidence,
   type RecommendationCandidate,
 } from "@morgan/integrations";
+import { getPricingOptimizationInputs } from "./pricing-optimization-service.js";
 import { env } from "../config.js";
 import { getMarketingBudgetAllocation } from "./marketing-budget-allocation-service.js";
 import { getInventoryPlanningSkus } from "./inventory-health-service.js";
@@ -56,6 +60,7 @@ export type GenerateRecommendationCandidatesResult = {
     leak: number;
     inventory: number;
     marketing: number;
+    pricing: number;
   };
 };
 
@@ -187,10 +192,12 @@ export async function generateRecommendationCandidatesForStore(
   storeId: string,
   referenceDay = new Date().toISOString().slice(0, 10),
 ): Promise<GenerateRecommendationCandidatesResult> {
-  const [activeLeaks, inventorySkus, marketingAllocation, recentHashes] = await Promise.all([
+  const [activeLeaks, inventorySkus, marketingAllocation, pricingInputs, recentHashes] =
+    await Promise.all([
     loadActiveProfitLeaks(db, storeId),
     getInventoryPlanningSkus(db, storeId, 30, referenceDay),
-    getMarketingBudgetAllocation(db, storeId, 7),
+    getMarketingBudgetAllocation(db, storeId, 30),
+    getPricingOptimizationInputs(db, storeId),
     loadRecentCandidateHashes(db, storeId, referenceDay),
   ]);
 
@@ -227,16 +234,32 @@ export async function generateRecommendationCandidatesForStore(
   );
 
   const inventoryCandidates = buildInventoryEngineCandidates(inventorySkus, referenceDay);
-  const marketingCandidates = buildMarketingEngineCandidates(
-    marketingAllocation.campaigns,
+  const marketingCandidates = buildMarketingEngineCandidates({
+    campaigns: marketingAllocation.campaigns,
+    dailyRows: marketingAllocation.daily_rows,
     referenceDay,
-  );
+    windowDays: marketingAllocation.window_days,
+  });
+  const channelBudgetCandidate = marketingAllocation.channel_optimization
+    ? buildChannelBudgetOptimizationCandidate({
+        recommendations: marketingAllocation.channel_optimization.recommendations,
+        projected_total_margin_usd:
+          marketingAllocation.channel_optimization.projected_total_margin_usd,
+        referenceDay,
+      })
+    : null;
+  const pricingCandidates = [
+    ...buildPriceIncreaseCandidates(pricingInputs.increase, referenceDay),
+    ...buildPriceDecreaseCandidates(pricingInputs.decrease, referenceDay),
+  ];
 
   const emitted = [
     ...leakCandidates,
     ...inventoryCandidates,
     ...deadStockCandidates,
     ...marketingCandidates,
+    ...(channelBudgetCandidate ? [channelBudgetCandidate] : []),
+    ...pricingCandidates,
   ];
   const deduped = dedupeRecommendationCandidates(emitted, recentHashes, referenceDay);
 
@@ -250,8 +273,10 @@ export async function generateRecommendationCandidatesForStore(
     skipped_duplicates: emitted.length - deduped.length,
     by_engine: {
       leak: leakCandidates.length,
-      inventory: inventoryCandidates.length,
-      marketing: marketingCandidates.length,
+      inventory: inventoryCandidates.length + deadStockCandidates.length,
+      marketing:
+        marketingCandidates.length + (channelBudgetCandidate ? 1 : 0),
+      pricing: pricingCandidates.length,
     },
   };
 }

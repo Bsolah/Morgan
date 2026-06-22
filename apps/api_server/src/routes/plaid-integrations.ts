@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireAuth } from "../plugins/auth.js";
 import { env, getPlaidConfig, isPlaidConfigured } from "../config.js";
 import { getDb } from "../lib/db.js";
-import { getMetaIntegrationForStore } from "../lib/meta-integration-service.js";
 import {
   createPlaidLinkTokenForStore,
   disconnectPlaidIntegration,
@@ -11,9 +10,7 @@ import {
   getPlaidIntegrationForStore,
   plaidConfig,
 } from "../lib/plaid-integration-service.js";
-import { getQuickBooksIntegrationForStore } from "../lib/quickbooks-integration-service.js";
-import { getGoogleAdsIntegrationForStore } from "../lib/google-ads-integration-service.js";
-import { getXeroIntegrationForStore } from "../lib/xero-integration-service.js";
+import { getIntegrationsHubForStore } from "../lib/integrations-hub-service.js";
 import { syncPlaidTransactionsForStore } from "../lib/plaid-transaction-sync-service.js";
 
 const exchangePublicTokenSchema = z.object({
@@ -150,14 +147,6 @@ export async function registerIntegrationsHub(app: FastifyInstance) {
       return reply.status(503).send({ error: "Database not configured", code: "not_configured" });
     }
 
-    const [meta, plaid, quickbooks, googleAds, xero] = await Promise.all([
-      getMetaIntegrationForStore(db, storeId),
-      getPlaidIntegrationForStore(db, storeId),
-      getQuickBooksIntegrationForStore(db, storeId),
-      getGoogleAdsIntegrationForStore(db, storeId),
-      getXeroIntegrationForStore(db, storeId),
-    ]);
-
-    return { integrations: [meta, plaid, quickbooks, googleAds, xero] };
+    return getIntegrationsHubForStore(db, storeId);
   });
 }

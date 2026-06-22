@@ -2,6 +2,7 @@ import type { Database } from "@morgan/db";
 import type { AlertRecord, NotificationPrefs } from "./alerts-data.js";
 import { getNotificationPrefs, logPushSent, wasPushSent } from "./alerts-store.js";
 import { sendAlertPush } from "./alerts-push-delivery.js";
+import { getStoreNotificationPrefs } from "./notification-prefs-service.js";
 
 export function isQuietHours(now: Date, prefs: NotificationPrefs): boolean {
   if (!prefs.quiet_hours_enabled) return false;
@@ -21,11 +22,14 @@ export function shouldBypassQuietHours(alert: AlertRecord): boolean {
   return alert.type === "cash_crunch" && alert.severity === "critical";
 }
 
-export function shouldSendAlertPush(alert: AlertRecord, now: Date = new Date()): boolean {
+export function shouldSendAlertPush(
+  alert: AlertRecord,
+  prefs: NotificationPrefs,
+  now: Date = new Date(),
+): boolean {
   if (alert.severity === "info") return false;
   if (wasPushSent(alert.id)) return false;
 
-  const prefs = getNotificationPrefs(alert.store_id);
   const enabled =
     alert.severity === "critical" ? prefs.push_critical : prefs.push_warnings;
   if (!enabled) return false;
@@ -37,13 +41,25 @@ export function shouldSendAlertPush(alert: AlertRecord, now: Date = new Date()):
   return true;
 }
 
+async function resolveNotificationPrefs(
+  db: Database | null,
+  storeId: string,
+): Promise<NotificationPrefs> {
+  if (db) {
+    return getStoreNotificationPrefs(db, storeId);
+  }
+
+  return getNotificationPrefs(storeId);
+}
+
 export async function maybeSendAlertPush(
   db: Database | null,
   storeId: string,
   alert: AlertRecord,
   now: Date = new Date(),
 ): Promise<boolean> {
-  if (!shouldSendAlertPush(alert, now)) return false;
+  const prefs = await resolveNotificationPrefs(db, storeId);
+  if (!shouldSendAlertPush(alert, prefs, now)) return false;
 
   logPushSent(storeId, alert.id, now.toISOString());
 

@@ -3,9 +3,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
+  createIdempotencyStore,
+  EventProcessingMetrics,
   FileDeadLetterStorage,
+  InMemoryIdempotencyStore,
+  processEventIdempotently,
   SHOPIFY_ORDERS_TOPIC,
-  withRetries,
 } from "@morgan/events";
 import type { EventEnvelope } from "@morgan/shared";
 import { createOrderFactWriter } from "@morgan/warehouse";
@@ -20,6 +23,8 @@ const envSchema = z.object({
   CLICKHOUSE_STORAGE_PATH: z.string().default("./data/clickhouse"),
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_ORDERS_TABLE: z.string().default("shopify_order_events"),
+  REDIS_URL: z.string().url().optional(),
+  EVENT_PROCESSING_IDEMPOTENCY_TTL_SECONDS: z.coerce.number().default(86_400),
 });
 
 const env = envSchema.parse(process.env);
@@ -57,23 +62,32 @@ async function main() {
   });
 
   const deadLetter = new FileDeadLetterStorage(env.DEAD_LETTER_STORAGE_PATH);
+  const idempotencyFallback = new InMemoryIdempotencyStore();
+  const idempotency = await createIdempotencyStore(env.REDIS_URL, idempotencyFallback);
+  const metrics = new EventProcessingMetrics();
 
   const processEvent = async (event: EventEnvelope) => {
-    try {
-      await withRetries(() => orderWriter.upsert(event), { maxAttempts: 3, baseDelayMs: 250 });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown processing error";
-      await deadLetter.write(SHOPIFY_ORDERS_TOPIC, event, message, 3);
-    }
+    await processEventIdempotently({
+      topic: SHOPIFY_ORDERS_TOPIC,
+      event,
+      idempotency,
+      metrics,
+      deadLetter,
+      idempotencyTtlSeconds: env.EVENT_PROCESSING_IDEMPOTENCY_TTL_SECONDS,
+      processor: async (envelope) => {
+        await orderWriter.upsert(envelope);
+      },
+    });
   };
 
   const shutdown = await startKafkaConsumer(processEvent);
-  console.log(`Morgan worker consuming ${SHOPIFY_ORDERS_TOPIC}`);
+  console.log(`Morgan worker consuming ${SHOPIFY_ORDERS_TOPIC} with idempotent processing`);
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, async () => {
       await shutdown();
       await orderWriter.close?.();
+      await idempotency.close?.();
       process.exit(0);
     });
   }

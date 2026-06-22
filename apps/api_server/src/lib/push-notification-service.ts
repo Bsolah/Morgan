@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 import { pushDeviceTokens, type Database } from "@morgan/db";
+import { formatTopKpiDeltaForPush, type BriefingKpiDelta } from "@morgan/integrations";
 import { env, getMobileDeepLink } from "../config.js";
+import { getStoreNotificationPrefs } from "./notification-prefs-service.js";
 
 export type PushNotificationResult = {
   sent: number;
@@ -67,6 +69,33 @@ async function sendFcmNotification(
 
   const payload = (await response.json()) as { success?: number };
   return payload.success ?? 0;
+}
+
+export async function sendDailyBriefReadyPush(
+  db: Database,
+  storeId: string,
+  input: {
+    headline: string;
+    kpiDeltas: BriefingKpiDelta[];
+    briefingDate: string;
+  },
+): Promise<PushNotificationResult> {
+  const prefs = await getStoreNotificationPrefs(db, storeId);
+  if (!prefs.push_daily_brief) {
+    return { sent: 0, skipped: true, reason: "push_daily_brief_disabled" };
+  }
+
+  const deepLink = getMobileDeepLink("home");
+
+  return sendFcmToStore(db, storeId, {
+    title: input.headline,
+    body: formatTopKpiDeltaForPush(input.kpiDeltas),
+    data: {
+      type: "daily_brief",
+      deep_link: deepLink,
+      briefing_date: input.briefingDate,
+    },
+  });
 }
 
 export async function sendBriefUpdatedPush(

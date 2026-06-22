@@ -29,11 +29,22 @@ class ChatInlineScenarioCard extends StatelessWidget {
     return '${_formatCurrency(orderedLow)} to ${_formatCurrency(orderedHigh)}';
   }
 
+  String? _formatRunwayRange(double? low, double? high) {
+    if (low == null || high == null) return null;
+    final orderedLow = low < high ? low : high;
+    final orderedHigh = low < high ? high : low;
+    if ((orderedLow - orderedHigh).abs() < 0.05) {
+      return '${orderedLow.toStringAsFixed(1)} days';
+    }
+    return '${orderedLow.toStringAsFixed(1)} to ${orderedHigh.toStringAsFixed(1)} days';
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.morgan;
     final theme = Theme.of(context);
     final forecast = scenarioCard.forecast;
+    final runwayText = _formatRunwayRange(forecast.runwayDaysDeltaLow, forecast.runwayDaysDeltaHigh);
 
     return MorganSurface(
       color: p.surfaceMuted,
@@ -52,6 +63,11 @@ class ChatInlineScenarioCard extends StatelessWidget {
           Text(scenarioCard.title, style: theme.textTheme.titleMedium),
           const SizedBox(height: MorganSpace.md),
           _MetricRow(
+            label: 'Projected revenue change (7d)',
+            value: _formatRange(forecast.revenueChangeLowUsd, forecast.revenueChangeHighUsd),
+          ),
+          const SizedBox(height: MorganSpace.sm),
+          _MetricRow(
             label: 'Projected profit change (7d)',
             value: _formatRange(forecast.profitChangeLowUsd, forecast.profitChangeHighUsd),
             valueColor: p.profit,
@@ -61,6 +77,10 @@ class ChatInlineScenarioCard extends StatelessWidget {
             label: 'Cash impact (7d)',
             value: _formatRange(forecast.cashImpactLowUsd, forecast.cashImpactHighUsd),
           ),
+          if (runwayText != null) ...[
+            const SizedBox(height: MorganSpace.sm),
+            _MetricRow(label: 'Runway change', value: runwayText),
+          ],
           const SizedBox(height: MorganSpace.sm),
           _MetricRow(
             label: 'Confidence',

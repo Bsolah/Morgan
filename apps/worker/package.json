@@ -15,7 +15,8 @@
     "dotenv": "^16.6.1"
   },
   "optionalDependencies": {
-    "kafkajs": "^2.2.4"
+    "kafkajs": "^2.2.4",
+    "redis": "^5.8.2"
   },
   "devDependencies": {
     "@types/node": "catalog:",

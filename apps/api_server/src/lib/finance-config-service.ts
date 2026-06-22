@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { integrations, merchantFinanceConfig, type Database } from "@morgan/db";
 import type { EventEnvelope } from "@morgan/shared";
+import { resolveMetricsRecalculationState, parseTargetMarginPct } from "@morgan/integrations";
 import { getIngestRuntime } from "./ingest-runtime.js";
+import { scheduleMetricsRecalculation } from "./metrics-recalc-service.js";
 
 export const COGS_METHODS = ["shopify", "manual_pct", "qbo", "xero"] as const;
 export type CogsMethod = (typeof COGS_METHODS)[number];
@@ -10,14 +12,11 @@ export type CogsMethod = (typeof COGS_METHODS)[number];
 export type FinanceConfigView = {
   cogs_method: CogsMethod;
   manual_cogs_pct: number | null;
+  target_contribution_margin_pct: number;
   quickbooks_connected: boolean;
   xero_connected: boolean;
   accounting_connected: boolean;
-  recalculation: {
-    status: "idle" | "scheduled";
-    requested_at: string | null;
-    due_by: string | null;
-  };
+  recalculation: ReturnType<typeof resolveMetricsRecalculationState>;
 };
 
 export type UpdateFinanceConfigInput = {
@@ -25,26 +24,28 @@ export type UpdateFinanceConfigInput = {
   manual_cogs_pct?: number | null;
 };
 
+export type UpdateTargetMarginInput = {
+  target_contribution_margin_pct: number;
+};
+
 function toView(
   row: typeof merchantFinanceConfig.$inferSelect,
   quickbooksConnected: boolean,
   xeroConnected: boolean,
 ): FinanceConfigView {
-  const hasRecalc = row.metricsRecalcDueBy != null && row.metricsRecalcRequestedAt != null;
-  const dueBy = row.metricsRecalcDueBy;
-  const isScheduled = hasRecalc && dueBy != null && dueBy.getTime() > Date.now();
-
   return {
     cogs_method: row.cogsMethod,
     manual_cogs_pct: row.manualCogsPct != null ? Number(row.manualCogsPct) : null,
+    target_contribution_margin_pct: parseTargetMarginPct(row.targetContributionMarginPct),
     quickbooks_connected: quickbooksConnected,
     xero_connected: xeroConnected,
     accounting_connected: quickbooksConnected || xeroConnected,
-    recalculation: {
-      status: isScheduled ? "scheduled" : "idle",
-      requested_at: row.metricsRecalcRequestedAt?.toISOString() ?? null,
-      due_by: row.metricsRecalcDueBy?.toISOString() ?? null,
-    },
+    recalculation: resolveMetricsRecalculationState({
+      requestedAt: row.metricsRecalcRequestedAt,
+      startedAt: row.metricsRecalcStartedAt,
+      completedAt: row.metricsRecalcCompletedAt,
+      dueBy: row.metricsRecalcDueBy,
+    }),
   };
 }
 
@@ -188,6 +189,8 @@ export async function updateFinanceConfig(
       manualCogsPct: manualPct,
       metricsRecalcRequestedAt: cogsChanged ? now : existing.metricsRecalcRequestedAt,
       metricsRecalcDueBy: cogsChanged ? dueBy : existing.metricsRecalcDueBy,
+      metricsRecalcStartedAt: cogsChanged ? null : existing.metricsRecalcStartedAt,
+      metricsRecalcCompletedAt: cogsChanged ? null : existing.metricsRecalcCompletedAt,
       updatedAt: now,
     })
     .where(eq(merchantFinanceConfig.storeId, storeId))
@@ -195,7 +198,45 @@ export async function updateFinanceConfig(
 
   if (cogsChanged && dueBy) {
     await publishMetricRecalculation(storeId, dueBy, input.cogs_method);
+    scheduleMetricsRecalculation(db, storeId);
   }
+
+  return toView(updated, quickbooksConnected, xeroConnected);
+}
+
+export async function loadTargetMarginPct(db: Database, storeId: string): Promise<number> {
+  const row = await ensureFinanceConfigRow(db, storeId);
+  return parseTargetMarginPct(row.targetContributionMarginPct);
+}
+
+export async function updateTargetMargin(
+  db: Database,
+  storeId: string,
+  input: UpdateTargetMarginInput,
+): Promise<FinanceConfigView> {
+  const pct = input.target_contribution_margin_pct;
+  if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+    throw new FinanceConfigError(
+      "target_contribution_margin_pct must be between 0 and 100",
+      "invalid_target_margin",
+    );
+  }
+
+  const [quickbooksConnected, xeroConnected] = await Promise.all([
+    isQuickBooksConnected(db, storeId),
+    isXeroConnected(db, storeId),
+  ]);
+
+  await ensureFinanceConfigRow(db, storeId);
+
+  const [updated] = await db
+    .update(merchantFinanceConfig)
+    .set({
+      targetContributionMarginPct: pct.toFixed(2),
+      updatedAt: new Date(),
+    })
+    .where(eq(merchantFinanceConfig.storeId, storeId))
+    .returning();
 
   return toView(updated, quickbooksConnected, xeroConnected);
 }

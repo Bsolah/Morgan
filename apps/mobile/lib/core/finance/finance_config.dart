@@ -1,3 +1,53 @@
+enum FinanceRecalculationStatus {
+  idle,
+  scheduled,
+  inProgress,
+  completed;
+
+  static FinanceRecalculationStatus fromApi(String value) => switch (value) {
+        'scheduled' => FinanceRecalculationStatus.scheduled,
+        'in_progress' => FinanceRecalculationStatus.inProgress,
+        'completed' => FinanceRecalculationStatus.completed,
+        _ => FinanceRecalculationStatus.idle,
+      };
+
+  bool get isActive =>
+      this == FinanceRecalculationStatus.scheduled || this == FinanceRecalculationStatus.inProgress;
+}
+
+class FinanceRecalculation {
+  const FinanceRecalculation({
+    required this.status,
+    this.requestedAt,
+    this.startedAt,
+    this.completedAt,
+    this.dueBy,
+  });
+
+  final FinanceRecalculationStatus status;
+  final DateTime? requestedAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime? dueBy;
+
+  factory FinanceRecalculation.fromJson(Map<String, dynamic> json) {
+    return FinanceRecalculation(
+      status: FinanceRecalculationStatus.fromApi(json['status'] as String? ?? 'idle'),
+      requestedAt: json['requested_at'] != null
+          ? DateTime.tryParse(json['requested_at'] as String)
+          : null,
+      startedAt:
+          json['started_at'] != null ? DateTime.tryParse(json['started_at'] as String) : null,
+      completedAt: json['completed_at'] != null
+          ? DateTime.tryParse(json['completed_at'] as String)
+          : null,
+      dueBy: json['due_by'] != null ? DateTime.tryParse(json['due_by'] as String) : null,
+    );
+  }
+
+  bool get isActive => status.isActive;
+}
+
 enum CogsMethod {
   shopify,
   manualPct,
@@ -42,27 +92,30 @@ class FinanceConfig {
   const FinanceConfig({
     required this.cogsMethod,
     this.manualCogsPct,
+    required this.targetContributionMarginPct,
     required this.quickbooksConnected,
     required this.xeroConnected,
-    this.recalculationDueBy,
+    required this.recalculation,
   });
 
   final CogsMethod cogsMethod;
   final double? manualCogsPct;
+  final double targetContributionMarginPct;
   final bool quickbooksConnected;
   final bool xeroConnected;
-  final DateTime? recalculationDueBy;
+  final FinanceRecalculation recalculation;
 
   factory FinanceConfig.fromJson(Map<String, dynamic> json) {
-    final recalc = json['recalculation'] as Map<String, dynamic>?;
-    final dueByRaw = recalc?['due_by'] as String?;
-
     return FinanceConfig(
       cogsMethod: CogsMethod.fromApi(json['cogs_method'] as String),
       manualCogsPct: (json['manual_cogs_pct'] as num?)?.toDouble(),
+      targetContributionMarginPct:
+          (json['target_contribution_margin_pct'] as num?)?.toDouble() ?? 40,
       quickbooksConnected: json['quickbooks_connected'] as bool? ?? false,
       xeroConnected: json['xero_connected'] as bool? ?? false,
-      recalculationDueBy: dueByRaw != null ? DateTime.tryParse(dueByRaw) : null,
+      recalculation: FinanceRecalculation.fromJson(
+        Map<String, dynamic>.from(json['recalculation'] as Map? ?? {}),
+      ),
     );
   }
 
@@ -72,6 +125,19 @@ class FinanceConfig {
         CogsMethod.qbo => 'QuickBooks',
         CogsMethod.xero => 'Xero',
       };
+
+  String get settingsSubtitle {
+    if (recalculation.status == FinanceRecalculationStatus.inProgress) {
+      return 'Updating margins…';
+    }
+    if (recalculation.status == FinanceRecalculationStatus.scheduled) {
+      return 'Margin update queued…';
+    }
+    return subtitle;
+  }
+
+  String get targetMarginSettingsSubtitle =>
+      'Target ${targetContributionMarginPct.toStringAsFixed(0)}%';
 }
 
 class UpdateFinanceConfigRequest {
@@ -87,4 +153,20 @@ class UpdateFinanceConfigRequest {
         'cogs_method': cogsMethod.apiValue,
         if (cogsMethod == CogsMethod.manualPct) 'manual_cogs_pct': manualCogsPct,
       };
+}
+
+class UpdateTargetMarginRequest {
+  const UpdateTargetMarginRequest({required this.targetContributionMarginPct});
+
+  final double targetContributionMarginPct;
+
+  Map<String, dynamic> toJson() => {
+        'target_contribution_margin_pct': targetContributionMarginPct,
+      };
+}
+
+String? validateTargetMarginPct(double? value) {
+  if (value == null) return 'Enter a target margin percentage';
+  if (value < 0 || value > 100) return 'Target margin must be between 0 and 100';
+  return null;
 }

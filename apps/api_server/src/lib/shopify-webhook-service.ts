@@ -12,6 +12,7 @@ import {
   type IdempotencyStore,
   type IngestRuntime,
 } from "@morgan/events";
+import { evaluateRefundSpikeOnWebhook } from "./refund-spike-alert-engine.js";
 
 const STUB_STORE_ID = "00000000-0000-4000-8000-000000000002";
 
@@ -114,6 +115,10 @@ export async function ingestShopifyWebhook(
 
   await runtime.pipeline.ingest(kafkaTopic, envelope);
   await recordWebhookEvent(db, input, storeId);
+
+  if (input.topic === "refunds/create") {
+    await evaluateRefundSpikeOnWebhook(db, storeId, input.payload, input.receivedAt);
+  }
 
   return { status: "accepted", eventId: input.eventId, topic: kafkaTopic };
 }

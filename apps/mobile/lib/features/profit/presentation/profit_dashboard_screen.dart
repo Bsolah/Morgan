@@ -11,8 +11,10 @@ import '../../../shared/widgets/morgan_surface.dart';
 import 'margin_trend_chart.dart';
 import 'margin_drivers_sheet.dart';
 import 'profit_leaks_section.dart';
+import 'pricing_suggestions_section.dart';
 import 'revenue_forecast_section.dart';
 import 'profit_day_summary_sheet.dart';
+import '../widgets/margin_target_progress.dart';
 
 class ProfitDashboardScreen extends ConsumerWidget {
   const ProfitDashboardScreen({super.key});
@@ -87,6 +89,12 @@ class ProfitDashboardScreen extends ConsumerWidget {
                             ],
                           ),
                           const SizedBox(height: MorganSpace.sm),
+                          MarginTargetProgress(
+                            currentMarginPct: overview.currentMarginPct,
+                            targetMarginPct: overview.targetMarginPct,
+                            belowTarget: overview.belowTarget,
+                          ),
+                          const SizedBox(height: MorganSpace.sm),
                           MorganMetricCard(
                             label: 'Active profit leaks',
                             value: overview.activeLeakCount.toString(),
@@ -119,6 +127,8 @@ class ProfitDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: MorganSpace.xl),
             const RevenueForecastSection(),
+            const SizedBox(height: MorganSpace.xl),
+            const PricingSuggestionsSection(),
             const SizedBox(height: MorganSpace.xl),
             const ProfitLeaksSection(),
             const SizedBox(height: MorganSpace.xl),

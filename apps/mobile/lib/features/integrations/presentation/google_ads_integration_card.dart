@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/integrations/integrations_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'integration_card_shared.dart';
 
 class GoogleAdsIntegrationCard extends ConsumerStatefulWidget {
-  const GoogleAdsIntegrationCard({super.key, required this.status});
+  const GoogleAdsIntegrationCard({
+    super.key,
+    required this.status,
+    this.dataCoveragePct = 0,
+  });
 
   final GoogleAdsIntegrationStatus status;
+  final int dataCoveragePct;
 
   @override
   ConsumerState<GoogleAdsIntegrationCard> createState() => _GoogleAdsIntegrationCardState();
@@ -46,6 +51,7 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
 
       final status = uri.queryParameters['google_ads_status'];
       ref.invalidate(googleAdsIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
 
       if (status == 'select_manager') {
         await _showManagerPicker();
@@ -80,6 +86,7 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
     try {
       final status = await repo.selectGoogleAdsManagerAccount(selected);
       ref.invalidate(googleAdsIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
       if (status.needsClientSelection) {
         await _showClientPicker();
       }
@@ -107,6 +114,7 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
     try {
       await repo.selectGoogleAdsClientAccount(selected);
       ref.invalidate(googleAdsIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not select that client account.');
     } finally {
@@ -159,6 +167,7 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
     try {
       await ref.read(integrationsRepositoryProvider).disconnectGoogleAds();
       ref.invalidate(googleAdsIntegrationStatusProvider);
+      ref.invalidate(integrationsHubProvider);
     } catch (_) {
       setState(() => _actionError = 'Could not disconnect Google Ads.');
     } finally {
@@ -171,9 +180,6 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
     final p = context.morgan;
     final theme = Theme.of(context);
     final status = widget.status;
-    final lastSyncLabel = status.lastSyncAt != null
-        ? DateFormat.yMMMd().add_jm().format(status.lastSyncAt!.toLocal())
-        : 'Never';
 
     final displayError = _actionError ??
         status.syncErrorMessage ??
@@ -185,12 +191,14 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
         children: [
           Row(
             children: [
-              Icon(Icons.ads_click_outlined, color: p.accent),
+              IntegrationStatusIcon(status: status.status),
+              const SizedBox(width: MorganSpace.sm),
+              Icon(Icons.ads_click_outlined, color: p.accent, size: 20),
               const SizedBox(width: MorganSpace.sm),
               Expanded(
                 child: Text('Google Ads', style: theme.textTheme.titleMedium),
               ),
-              _GoogleAdsStatusChip(status: status),
+              IntegrationStatusChip(status: status.status),
             ],
           ),
           const SizedBox(height: MorganSpace.sm),
@@ -207,12 +215,13 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
               'Backfilling 90 days of campaign performance…',
               style: theme.textTheme.bodySmall?.copyWith(color: p.accent),
             ),
-          if (status.isConnected)
-            Text('Last sync: $lastSyncLabel', style: theme.textTheme.bodySmall),
+          IntegrationLastSyncLine(lastSyncAt: status.lastSyncAt),
           if (displayError != null) ...[
             const SizedBox(height: MorganSpace.xs),
             Text(displayError, style: theme.textTheme.bodySmall?.copyWith(color: p.loss)),
           ],
+          const SizedBox(height: MorganSpace.md),
+          IntegrationDataCoverageBar(percent: widget.dataCoveragePct, compact: true),
           const SizedBox(height: MorganSpace.md),
           if (status.needsManagerSelection)
             MorganPrimaryButton(
@@ -242,35 +251,6 @@ class _GoogleAdsIntegrationCardState extends ConsumerState<GoogleAdsIntegrationC
           ],
         ],
       ),
-    );
-  }
-}
-
-class _GoogleAdsStatusChip extends StatelessWidget {
-  const _GoogleAdsStatusChip({required this.status});
-
-  final GoogleAdsIntegrationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.morgan;
-    final theme = Theme.of(context);
-
-    final (label, color) = switch (status.status) {
-      IntegrationStatus.connected => ('Connected', p.profit),
-      IntegrationStatus.syncing => ('Syncing', p.accent),
-      IntegrationStatus.error => ('Error', p.loss),
-      IntegrationStatus.disconnected =>
-        status.availability == 'available' ? ('Available', p.accent) : ('Disconnected', p.textMuted),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(MorganRadius.pill),
-      ),
-      child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
     );
   }
 }

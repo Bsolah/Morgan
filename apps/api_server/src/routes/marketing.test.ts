@@ -180,7 +180,7 @@ describe("marketing routes", () => {
     const token = await getAccessToken(app);
     const res = await app.inject({
       method: "GET",
-      url: "/api/v1/marketing/budget-allocation?window_days=7",
+      url: "/api/v1/marketing/budget-allocation",
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -191,9 +191,13 @@ describe("marketing routes", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      window_days: 7,
+      window_days: 30,
+      total_budget_usd: expect.any(Number),
       campaigns: expect.any(Array),
       channels: expect.any(Array),
+      marginal_poas_curves: expect.any(Array),
+      reallocation_scenarios: expect.any(Array),
+      suggest_only: true,
     });
   });
 });

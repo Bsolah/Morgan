@@ -11,6 +11,7 @@ import '../../../shared/widgets/morgan_metric_card.dart';
 import '../../../shared/widgets/morgan_primary_button.dart';
 import '../../../shared/widgets/morgan_section_header.dart';
 import '../../../shared/widgets/morgan_surface.dart';
+import 'marketing_budget_tab.dart';
 import 'marketing_mer_tab.dart';
 
 class MarketingOverviewScreen extends ConsumerStatefulWidget {
@@ -28,7 +29,7 @@ class _MarketingOverviewScreenState extends ConsumerState<MarketingOverviewScree
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -69,6 +70,7 @@ class _MarketingOverviewScreenState extends ConsumerState<MarketingOverviewScree
                 tabs: const [
                   Tab(text: 'Campaigns'),
                   Tab(text: 'Channels'),
+                  Tab(text: 'Budget'),
                 ],
               ),
             ),
@@ -98,6 +100,7 @@ class _MarketingOverviewScreenState extends ConsumerState<MarketingOverviewScree
                     ),
                     child: MarketingMerTab(),
                   ),
+                  const MarketingBudgetTab(),
                 ],
               ),
             ),

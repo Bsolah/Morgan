@@ -22,6 +22,14 @@ export type BriefingTopAction = {
   external_key: string | null;
 };
 
+export type BriefingMarginTargetSummary = {
+  current_margin_pct: number;
+  target_margin_pct: number;
+  progress_pct: number;
+  below_target: boolean;
+  weekly_summary: string;
+};
+
 export type BriefingSummaryJson = {
   kpi_deltas: BriefingKpiDelta[];
   top_action: BriefingTopAction;
@@ -30,6 +38,7 @@ export type BriefingSummaryJson = {
   source: "llm" | "template";
   trigger?: "scheduled" | "critical_alert";
   alert_type?: string | null;
+  margin_target?: BriefingMarginTargetSummary;
 };
 
 export type BriefingLlmOutput = {
@@ -79,6 +88,31 @@ export function computeDeltaPct(current: number, prior: number): number {
 export function deltaDirection(deltaPct: number): "up" | "down" | "flat" {
   if (Math.abs(deltaPct) < 0.05) return "flat";
   return deltaPct > 0 ? "up" : "down";
+}
+
+export function formatTopKpiDeltaForPush(kpiDeltas: BriefingKpiDelta[]): string {
+  const primary = kpiDeltas[0];
+  if (!primary) return "Your daily brief is ready.";
+
+  const sign = primary.delta_pct >= 0 ? "+" : "";
+  const deltaStr = `${sign}${primary.delta_pct.toFixed(1)}% vs prior week`;
+
+  switch (primary.format) {
+    case "currency": {
+      const valueStr = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(primary.value);
+      return `${primary.label}: ${valueStr} (${deltaStr})`;
+    }
+    case "percent":
+      return `${primary.label}: ${(primary.value * 100).toFixed(1)}% (${deltaStr})`;
+    case "ratio":
+      return `${primary.label}: ${primary.value.toFixed(2)}x (${deltaStr})`;
+    default:
+      return `${primary.label}: ${primary.value.toLocaleString("en-US")} (${deltaStr})`;
+  }
 }
 
 export function buildKpiDelta(input: {

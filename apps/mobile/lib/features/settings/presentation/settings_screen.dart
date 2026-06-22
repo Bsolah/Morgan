@@ -9,6 +9,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/inventory/inventory_config_repository.dart';
 import '../../../core/finance/finance_repository.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/notifications/notifications_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
 import '../../../core/theme/morgan_tokens.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -72,6 +73,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final theme = Theme.of(context);
     final themeMode = ref.watch(themeModeProvider);
     final shopDomain = ref.watch(authControllerProvider).session?.shopDomain;
+    final notificationSubtitle = ref.watch(notificationPrefsProvider).maybeWhen(
+          data: (prefs) =>
+              'Brief ${prefs.pushDailyBrief ? 'on' : 'off'} · Quiet hours ${prefs.quietHoursSummary}',
+          orElse: () => 'Daily brief, alerts, quiet hours',
+        );
 
     // Ensure API client is initialized for authenticated requests site-wide.
     ref.watch(apiClientProvider);
@@ -171,6 +177,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: MorganSpace.xl),
+                  Text('NOTIFICATIONS', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: MorganSpace.sm),
+                  MorganSurface(
+                    padding: EdgeInsets.zero,
+                    child: _SettingsTile(
+                      title: 'Notification preferences',
+                      subtitle: notificationSubtitle,
+                      onTap: () => context.push('/settings/notifications'),
+                    ),
+                  ),
+                  const SizedBox(height: MorganSpace.xl),
                   Text('FINANCE', style: theme.textTheme.labelMedium),
                   const SizedBox(height: MorganSpace.sm),
                   MorganSurface(
@@ -180,16 +197,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         _SettingsTile(
                           title: 'COGS method',
                           subtitle: ref.watch(financeConfigProvider).maybeWhen(
-                                data: (config) => config.subtitle,
+                                data: (config) => config.settingsSubtitle,
                                 orElse: () => 'Shopify unit cost',
                               ),
                           onTap: () => context.push('/settings/cogs'),
                         ),
                         Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
                         _SettingsTile(
+                          title: 'Target margin',
+                          subtitle: ref.watch(financeConfigProvider).maybeWhen(
+                                data: (config) => config.targetMarginSettingsSubtitle,
+                                orElse: () => 'Target 40%',
+                              ),
+                          onTap: () => context.push('/settings/target-margin'),
+                        ),
+                        Divider(height: 1, color: p.borderSubtle, indent: MorganSpace.card),
+                        _SettingsTile(
                           title: 'Daily briefing',
-                          subtitle: '6:00 AM local time',
-                          onTap: () {},
+                          subtitle: ref.watch(briefingScheduleProvider).maybeWhen(
+                                data: (schedule) => schedule.settingsSubtitle,
+                                orElse: () => '6:00 AM',
+                              ),
+                          onTap: () => context.push('/settings/briefing'),
                         ),
                       ],
                     ),

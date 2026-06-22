@@ -52,10 +52,16 @@ export async function provisionShopifyConnection(
     orgId = existingStore.orgId;
     storeId = existingStore.id;
 
+    const timezoneUpdate =
+      existingStore.timezoneSource === "manual"
+        ? {}
+        : { timezone: input.shopInfo.timezone };
+
     await db
       .update(stores)
       .set({
-        timezone: input.shopInfo.timezone,
+        shopifyTimezone: input.shopInfo.timezone,
+        ...timezoneUpdate,
         currency: input.shopInfo.currency,
         status: "syncing",
         updatedAt: new Date(),
@@ -79,6 +85,7 @@ export async function provisionShopifyConnection(
         platform: "shopify",
         shopDomain: input.shopDomain,
         timezone: input.shopInfo.timezone,
+        shopifyTimezone: input.shopInfo.timezone,
         currency: input.shopInfo.currency,
         status: "syncing",
       })

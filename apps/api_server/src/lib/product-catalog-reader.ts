@@ -2,6 +2,24 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { FileCatalogWriter, type InventoryLevelRow } from "@morgan/warehouse";
 
+export async function loadPriceBySku(
+  bronzeStoragePath: string,
+  storeId: string,
+): Promise<Map<string, number>> {
+  const writer = new FileCatalogWriter(bronzeStoragePath);
+  const index = await writer.loadProductIndex(storeId);
+  const map = new Map<string, number>();
+
+  for (const row of index.values()) {
+    if (!row.sku) continue;
+    const price = Number(row.price);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    map.set(row.sku, price);
+  }
+
+  return map;
+}
+
 export async function loadUnitCostBySku(
   bronzeStoragePath: string,
   storeId: string,

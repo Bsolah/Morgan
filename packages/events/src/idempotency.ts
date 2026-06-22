@@ -31,6 +31,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
   constructor(private readonly redis: RedisClient, private readonly prefix = "morgan:idempotency:") {}
 
   async claim(key: string, ttlSeconds: number): Promise<boolean> {
+    // Redis SET key value NX EX ttl — equivalent to SETNX with expiry.
     const result = await this.redis.set(`${this.prefix}${key}`, "1", { NX: true, EX: ttlSeconds });
     return result === "OK";
   }
