@@ -19,10 +19,14 @@ dependencies:
   share_plus: ^10.1.4
   pdf: ^3.11.3
   google_fonts: ^6.2.1
-  flutter_web_auth_2: ^4.1.0
-  local_auth: ^2.3.0
+  flutter_web_auth_2: 3.1.2
+  local_auth: 2.2.0
   app_links: ^6.4.0
   plaid_flutter: ^4.2.0
+
+dependency_overrides:
+  # Xcode 14.2 / Swift 5.7: 1.6.x uses Swift concurrency patterns that fail to compile.
+  local_auth_darwin: 1.4.2
 
 dev_dependencies:
   flutter_test:

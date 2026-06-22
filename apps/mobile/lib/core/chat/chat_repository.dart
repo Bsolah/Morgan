@@ -53,7 +53,7 @@ class ChatRepository {
     if (stream == null) return;
 
     var buffer = '';
-    await for (final chunk in stream.transform(utf8.decoder)) {
+    await for (final chunk in stream.cast<List<int>>().transform(utf8.decoder)) {
       buffer += chunk;
       final events = _drainSseBuffer(buffer);
       buffer = events.remaining;

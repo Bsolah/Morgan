@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/theme/morgan_colors.dart';
-import '../../core/theme/morgan_tokens.dart';
-import '../../core/chat/chat_models.dart';
+import '../../../core/theme/morgan_colors.dart';
+import '../../../core/theme/morgan_tokens.dart';
+import '../../../core/chat/chat_models.dart';
 
 class ChatCitationDetailSheet extends StatelessWidget {
   const ChatCitationDetailSheet({super.key, required this.citation});

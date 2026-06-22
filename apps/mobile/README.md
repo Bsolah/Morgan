@@ -161,7 +161,19 @@ bash scripts/run-mobile-ios.sh "iPhone 14"
 
 ### `flutter_web_auth_2` Swift errors on Xcode 14
 
-`flutter_web_auth_2` 4.x requires Xcode 15+ (iOS 17 SDK). This project pins **3.1.x** for Xcode 14.2 on macOS 12. If you upgrade Xcode, you can bump the dependency in `pubspec.yaml`.
+`flutter_web_auth_2` 4.x requires Xcode 15+ (iOS 17 SDK). This project pins **3.1.2** for Xcode 14.2 on macOS 12. If you upgrade Xcode, you can bump the dependency in `pubspec.yaml`.
+
+### `local_auth_darwin` Swift concurrency errors on Xcode 14
+
+`local_auth_darwin` 1.6.x fails to compile on Xcode 14.2. The project pins **1.4.2** via `dependency_overrides` in `pubspec.yaml`.
+
+### Plaid / iOS deployment target
+
+`plaid_flutter` requires **iOS 14.0+**. The Podfile and Xcode project are set to `14.0` (not 13.0).
+
+### `pnpm mobile:ios` uses the bash launcher
+
+`pnpm mobile:ios` runs `scripts/run-mobile-ios.sh`, which boots the simulator, sets UTF-8 locale for CocoaPods, and passes `--dart-define=SKIP_SETUP=true`.
 
 ### CocoaPods issues (iOS)
 

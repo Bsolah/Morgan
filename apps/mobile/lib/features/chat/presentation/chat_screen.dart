@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/chat/chat_models.dart';
 import '../../../core/chat/chat_repository.dart';
 import '../../../core/chat/chat_starters_provider.dart';
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/recommendations/recommendation_detail.dart';
 import '../../../core/recommendations/recommendations_repository.dart';
 import '../../../core/scenarios/scenarios_repository.dart';
 import '../../../core/theme/morgan_colors.dart';
@@ -180,19 +183,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _busyActionId = card.recommendationId);
 
     try {
-      final result = await ref.read(recommendationsRepositoryProvider).acceptRecommendation(card.recommendationId);
+      final session = await ref.read(authSessionProvider.future);
+      if (session == null) return;
+
+      try {
+        await RecommendationsRepository(session).accept(card.recommendationId);
+      } catch (_) {
+        if (AppConfig.canSkipSetup) {
+          RecommendationsRepository.acceptLocally(card.recommendationId);
+        } else {
+          rethrow;
+        }
+      }
       if (!mounted) return;
 
       setState(() {
         _messages[messageIndex] = _messages[messageIndex].copyWith(
-          actionCard: card.copyWith(status: result.recommendation.status),
+          actionCard: card.copyWith(status: 'accepted'),
         );
         _messages = [
           ..._messages,
           ChatMessage(
             id: 'local-confirm-${DateTime.now().millisecondsSinceEpoch}',
             role: 'assistant',
-            content: result.confirmationMessage,
+            content: "Got it — we'll track the impact over the next 30 days",
           ),
         ];
         _busyActionId = null;
@@ -217,19 +231,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _busyActionId = card.recommendationId);
 
     try {
-      final result = await ref.read(recommendationsRepositoryProvider).dismissRecommendation(card.recommendationId);
+      final session = await ref.read(authSessionProvider.future);
+      if (session == null) return;
+
+      try {
+        await RecommendationsRepository(session).dismiss(
+          recommendationId: card.recommendationId,
+          reason: DismissReason.notRelevant,
+        );
+      } catch (_) {
+        if (AppConfig.canSkipSetup) {
+          RecommendationsRepository.dismissLocally(card.recommendationId);
+        } else {
+          rethrow;
+        }
+      }
       if (!mounted) return;
 
       setState(() {
         _messages[messageIndex] = _messages[messageIndex].copyWith(
-          actionCard: card.copyWith(status: result.recommendation.status),
+          actionCard: card.copyWith(status: 'dismissed'),
         );
         _messages = [
           ..._messages,
           ChatMessage(
             id: 'local-confirm-${DateTime.now().millisecondsSinceEpoch}',
             role: 'assistant',
-            content: result.confirmationMessage,
+            content: "Thanks — we'll improve future suggestions",
           ),
         ];
         _busyActionId = null;

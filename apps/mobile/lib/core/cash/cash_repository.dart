@@ -374,7 +374,7 @@ class CashRepository {
 }
 
 final cashRepositoryProvider = Provider<CashRepository>((ref) {
-  return CashRepository(ref.watch(apiClientProvider));
+  return CashRepository(ref.watch(apiClientProvider).dio);
 });
 
 final cashOverviewProvider = FutureProvider<CashOverview>((ref) async {

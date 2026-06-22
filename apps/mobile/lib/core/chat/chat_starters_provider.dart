@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../alerts/alerts_repository.dart';
+import '../alerts/alerts_providers.dart';
 import '../brief/brief_repository.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
@@ -13,7 +13,7 @@ const _fallbackStarters = [
 
 final chatStartersProvider = FutureProvider<List<ChatStarter>>((ref) async {
   ref.watch(dailyBriefProvider);
-  ref.watch(activeAlertsProvider);
+  ref.watch(alertsProvider);
 
   try {
     final starters = await ref.read(chatRepositoryProvider).getStarters();
