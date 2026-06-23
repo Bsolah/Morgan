@@ -66,7 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: const Text('History'),
                       ),
                       const Spacer(),
-                      _HomeDateLabel(briefAsync: briefAsync, theme: theme),
+                      _HomeDateLabel(briefAsync: briefAsync, theme: theme.textTheme),
                     ],
                   ),
                 ),
@@ -241,7 +241,7 @@ class _HomeQuickLinks extends StatelessWidget {
             children: [
               for (var col = 0; col < 2; col++) ...[
                 if (col > 0) const SizedBox(width: MorganSpace.sm),
-                Expanded(child: _HomeQuickLinkTile(link: _links[row * 2 + col], p: p, theme: theme)),
+                Expanded(child: _HomeQuickLinkTile(link: _links[row * 2 + col], p: p, theme: theme.textTheme)),
               ],
             ],
           ),

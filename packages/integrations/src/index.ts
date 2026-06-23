@@ -66,7 +66,6 @@ export * from "./cash/cash-flow-breakdown.js";
 export * from "./cash/cash-projection.js";
 export * from "./cash/runway.js";
 export * from "./quickbooks/oauth.js";
-export * from "./quickbooks/categories.js";
 export * from "./quickbooks/client.js";
 export * from "./quickbooks/account-mapping.js";
 export * from "./quickbooks/reports.js";

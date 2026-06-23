@@ -123,7 +123,7 @@ class MarketingBudgetTab extends ConsumerWidget {
                         Text(curve.campaignName, style: theme.textTheme.titleSmall),
                         const SizedBox(height: MorganSpace.xxs),
                         Text(
-                          'Marginal POAS ${curve.marginalPoas30d.toStringAsFixed(2)} · ${curve.curvePoints.length} buckets',
+                          'Marginal POAS ${curve.marginalPoas30d.toStringAsFixed(2)} · ${curve.curvePoints} buckets',
                           style: theme.textTheme.bodySmall,
                         ),
                       ],

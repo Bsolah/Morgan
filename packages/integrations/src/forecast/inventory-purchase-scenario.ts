@@ -1,4 +1,5 @@
-import { addDaysToDayString, computeDaysOfStock } from "../inventory/inventory-health.js";
+import { addDaysToDayString } from "../cash/runway.js";
+import { computeDaysOfStock } from "../inventory/inventory-health.js";
 import { computeRunwayImpactDays } from "../inventory/inventory-reorder.js";
 
 export const INVENTORY_PURCHASE_RUNWAY_WARNING_DAYS = 30;

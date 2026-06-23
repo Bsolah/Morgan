@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../config/app_config.dart';
+import '../storage/secure_storage.dart';
 import 'auth_exception.dart';
 import 'auth_session.dart';
 import 'jwt_utils.dart';
@@ -19,39 +22,67 @@ class AuthRepository {
     Dio? dio,
     FlutterSecureStorage? storage,
   })  : _dio = dio ?? Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)),
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ?? morganSecureStorage;
+
+  static const devSession = AuthSession(
+    accessToken: 'dev-local-access-token',
+    refreshToken: 'dev-local-refresh-token',
+    storeId: AppConfig.devSessionStoreId,
+    shopDomain: AppConfig.devSessionShopDomain,
+  );
 
   final Dio _dio;
   final FlutterSecureStorage _storage;
+  AuthSession? _memorySession;
 
   Future<AuthSession?> loadSession() async {
-    final accessToken = await _storage.read(key: _accessTokenKey);
-    final refreshToken = await _storage.read(key: _refreshTokenKey);
-    final storeId = await _storage.read(key: _storeIdKey);
-    final shopDomain = await _storage.read(key: _shopDomainKey);
+    if (_memorySession != null) return _memorySession;
 
-    if (accessToken == null || refreshToken == null || storeId == null || shopDomain == null) {
-      return null;
+    if (AppConfig.canSkipSetup) {
+      _memorySession = devSession;
+      return devSession;
     }
 
-    return AuthSession(
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      storeId: storeId,
-      shopDomain: shopDomain,
-    );
+    try {
+      final accessToken = await _storage
+          .read(key: _accessTokenKey)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final refreshToken = await _storage
+          .read(key: _refreshTokenKey)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final storeId = await _storage
+          .read(key: _storeIdKey)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final shopDomain = await _storage
+          .read(key: _shopDomainKey)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
+      if (accessToken == null || refreshToken == null || storeId == null || shopDomain == null) {
+        return null;
+      }
+
+      final session = AuthSession(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        storeId: storeId,
+        shopDomain: shopDomain,
+      );
+      _memorySession = session;
+      return session;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Localhost-only dev session — no real Shopify tokens.
   Future<AuthSession> seedDevSession() async {
-    const session = AuthSession(
-      accessToken: 'dev-local-access-token',
-      refreshToken: 'dev-local-refresh-token',
-      storeId: AppConfig.devSessionStoreId,
-      shopDomain: AppConfig.devSessionShopDomain,
+    _memorySession = devSession;
+    unawaited(
+      _persist(devSession)
+          .timeout(const Duration(seconds: 5))
+          .catchError((_) {}),
     );
-    await _persist(session);
-    return session;
+    return devSession;
   }
 
   Future<AuthSession> exchangeConnectToken(String connectToken) async {
@@ -78,7 +109,7 @@ class AuthRepository {
       throw const AuthException('Not signed in', code: 'not_signed_in');
     }
 
-    if (!isAccessTokenExpired(session.accessToken)) {
+    if (_isDevSession(session) || !isAccessTokenExpired(session.accessToken)) {
       return session.accessToken;
     }
 
@@ -87,6 +118,11 @@ class AuthRepository {
   }
 
   Future<AuthSession> refreshAccessToken() async {
+    final session = await loadSession();
+    if (session != null && _isDevSession(session)) {
+      return session;
+    }
+
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) {
       throw const AuthException('No refresh token', code: 'no_refresh_token');
@@ -99,13 +135,13 @@ class AuthRepository {
       );
 
       final accessToken = response.data!['access_token'] as String;
-      final session = (await loadSession())!;
+      final current = (await loadSession())!;
 
       final updated = AuthSession(
         accessToken: accessToken,
-        refreshToken: session.refreshToken,
-        storeId: session.storeId,
-        shopDomain: session.shopDomain,
+        refreshToken: current.refreshToken,
+        storeId: current.storeId,
+        shopDomain: current.shopDomain,
       );
 
       await _storage.write(key: _accessTokenKey, value: updated.accessToken);
@@ -114,11 +150,24 @@ class AuthRepository {
       if (e.response?.statusCode == 401) {
         throw const AuthException('Refresh token expired', code: 'refresh_expired');
       }
+
+      final fallback = await loadSession();
+      if (fallback != null && _isDevSession(fallback)) {
+        return fallback;
+      }
+
       rethrow;
     }
   }
 
+  bool _isDevSession(AuthSession session) {
+    return AppConfig.canSkipSetup &&
+        (session.accessToken == 'dev-local-access-token' ||
+            session.storeId == AppConfig.devSessionStoreId);
+  }
+
   Future<void> _persist(AuthSession session) async {
+    _memorySession = session;
     await Future.wait([
       _storage.write(key: _accessTokenKey, value: session.accessToken),
       _storage.write(key: _refreshTokenKey, value: session.refreshToken),
@@ -128,6 +177,7 @@ class AuthRepository {
   }
 
   Future<void> clearSession() async {
+    _memorySession = null;
     await Future.wait([
       _storage.delete(key: _accessTokenKey),
       _storage.delete(key: _refreshTokenKey),
@@ -167,5 +217,3 @@ class AuthRepository {
 
   Future<void> clearPendingRoute() => _storage.delete(key: _pendingRouteKey);
 }
-
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());

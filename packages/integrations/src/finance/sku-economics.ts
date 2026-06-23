@@ -142,9 +142,3 @@ export function buildSkuWeeklyTrend(
       orders_count: row.orders_count,
     }));
 }
-
-export function addDays(isoDay: string, days: number): string {
-  const date = new Date(`${isoDay}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}

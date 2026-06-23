@@ -9,7 +9,14 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(
 
 final authSessionProvider = FutureProvider<AuthSession?>((ref) async {
   final repo = ref.watch(authRepositoryProvider);
-  final session = await repo.loadSession();
+  AuthSession? session;
+  try {
+    session = await repo
+        .loadSession()
+        .timeout(const Duration(seconds: 8), onTimeout: () => null);
+  } catch (_) {
+    session = null;
+  }
   if (session != null) return session;
   if (!AppConfig.canSkipSetup) return null;
   return repo.seedDevSession();

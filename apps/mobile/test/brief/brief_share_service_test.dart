@@ -8,7 +8,7 @@ void main() {
       const brief = DailyBrief(
         date: '2026-06-17',
         headline: 'Profit momentum improved this week',
-        narrative: 'Contribution profit over the last week is $4,280.',
+        narrative: 'Contribution profit over the last week is \$4,280.',
         metaConnected: true,
         kpiDeltas: [
           BriefingKpiDelta(

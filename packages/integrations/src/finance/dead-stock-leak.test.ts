@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays } from "./sku-economics.js";
+import { addDays } from "../briefing/briefing.js";
 import {
   buildDeadStockSkuInputs,
   evaluateDeadStockLeak,

@@ -5,6 +5,7 @@ export const OVERSTOCK_DAYS = 90;
 export const DEFAULT_LEAD_TIME_DAYS = 14;
 export const REORDER_SAFETY_DAYS = 14;
 export { SAFETY_STOCK_Z_SCORE } from "./inventory-reorder.js";
+import { addDaysToDayString } from "../cash/runway.js";
 import {
   buildReorderRecommendationCopy,
   computeDemandStdDev,
@@ -206,12 +207,6 @@ export function computeOverstockValueUsd(
   const targetUnits = velocityPerDay > 0 ? velocityPerDay * overstockDays : 0;
   const excessUnits = velocityPerDay > 0 ? Math.max(0, availableUnits - targetUnits) : availableUnits;
   return Math.round(excessUnits * unitCost);
-}
-
-export function addDaysToDayString(day: string, delta: number): string {
-  const date = new Date(`${day}T12:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + delta);
-  return date.toISOString().slice(0, 10);
 }
 
 export function buildSkuInventoryHealth(

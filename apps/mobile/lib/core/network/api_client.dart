@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_controller.dart';
 import '../auth/auth_exception.dart';
-import '../auth/auth_repository.dart';
+import '../auth/auth_providers.dart';
 import '../config/app_config.dart';
 
 typedef ReauthCallback = void Function(String? returnTo);
@@ -59,6 +59,15 @@ class ApiClient {
           error: e,
         ),
       );
+    } on DioException catch (e) {
+      if (AppConfig.canSkipSetup) {
+        final session = await _authRepository.loadSession();
+        if (session != null) {
+          options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+          return handler.next(options);
+        }
+      }
+      handler.reject(e);
     }
   }
 

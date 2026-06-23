@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultMorganCategoryForAccount } from "./account-mapping.js";
-import { computeCogsDiscrepancy, computeQboCogsRate, sumPnlByCategory } from "./cogs.js";
-import { monthToDateRange } from "./reports.js";
+import { monthToDateRange, sumPnlByCategory } from "../accounting/pnl.js";
+import { computeCogsDiscrepancy, computeQboCogsRate } from "./cogs.js";
 
 describe("quickbooks account mapping", () => {
   it("maps COGS account types to cogs category", () => {

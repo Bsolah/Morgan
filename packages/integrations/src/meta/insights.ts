@@ -299,29 +299,6 @@ export async function fetchMetaInsightsBatch(opts: {
   return results;
 }
 
-export function chunkDateRange(
-  since: string,
-  until: string,
-  chunkDays: number,
-): Array<{ since: string; until: string }> {
-  const chunks: Array<{ since: string; until: string }> = [];
-  let cursor = new Date(`${since}T00:00:00.000Z`);
-  const end = new Date(`${until}T00:00:00.000Z`);
-
-  while (cursor <= end) {
-    const chunkStart = cursor.toISOString().slice(0, 10);
-    const chunkEndDate = new Date(cursor);
-    chunkEndDate.setUTCDate(chunkEndDate.getUTCDate() + chunkDays - 1);
-    if (chunkEndDate > end) chunkEndDate.setTime(end.getTime());
-    const chunkEnd = chunkEndDate.toISOString().slice(0, 10);
-    chunks.push({ since: chunkStart, until: chunkEnd });
-    cursor = new Date(chunkEndDate);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return chunks;
-}
-
 export const META_INSIGHT_LEVELS: MetaInsightLevel[] = ["account", "campaign", "adset", "ad"];
 
 /** @deprecated Use fetchMetaInsightsForLevel with level campaign */

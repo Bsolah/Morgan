@@ -11,7 +11,7 @@ import {
 import {
   decryptSecret,
   encryptSecret,
-  exchangeAuthorizationCode,
+  exchangeMetaAuthorizationCode,
   exchangeForLongLivedToken,
   fetchMetaAdAccounts,
   META_TOKEN_EXPIRED_MESSAGE,
@@ -289,7 +289,7 @@ export async function completeMetaOAuth(
     existingIntegration && existingIntegration.status !== "disconnected",
   );
 
-  const shortToken = await exchangeAuthorizationCode({
+  const shortToken = await exchangeMetaAuthorizationCode({
     appId: input.appId,
     appSecret: input.appSecret,
     redirectUri: input.redirectUri,

@@ -112,4 +112,5 @@ class MorganMetricCard extends StatelessWidget {
     if (delta != null) parts.add(delta!);
     if (subtitle != null) parts.add(subtitle!);
     return parts.join('. ');
+  }
 }

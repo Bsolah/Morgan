@@ -641,6 +641,7 @@ class PricingSuggestionsResponse {
 }
 
 class ProfitRepository {
+  ProfitRepository(this._dio, this._storeId);
 
   final Dio _dio;
   final String? _storeId;

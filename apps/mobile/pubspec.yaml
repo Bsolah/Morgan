@@ -23,8 +23,6 @@ dependencies:
   local_auth: 2.2.0
   app_links: ^6.4.0
   plaid_flutter: ^4.2.0
-  firebase_core: ^3.13.0
-  firebase_messaging: ^15.2.5
 
 dependency_overrides:
   # Xcode 14.2 / Swift 5.7: 1.6.x uses Swift concurrency patterns that fail to compile.

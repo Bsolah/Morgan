@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/app_config.dart';
+import 'auth_providers.dart';
 import 'auth_repository.dart';
 import 'auth_session.dart';
 
@@ -45,25 +49,54 @@ class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() {
     _repository = ref.read(authRepositoryProvider);
+
+    if (AppConfig.canSkipSetup) {
+      unawaited(_bootstrap());
+      return const AuthState(status: AuthStatus.authenticated, session: AuthRepository.devSession);
+    }
+
     _bootstrap();
     return const AuthState(status: AuthStatus.loading);
   }
 
   Future<void> _bootstrap() async {
-    final session = await _repository.loadSession();
-    if (session == null) {
+    try {
+      AuthSession? session = await _repository
+          .loadSession()
+          .timeout(const Duration(seconds: 8), onTimeout: () => null);
+
+      if (session == null && AppConfig.canSkipSetup) {
+        session = await _repository.seedDevSession();
+      }
+
+      if (session == null) {
+        state = const AuthState(status: AuthStatus.unauthenticated);
+        return;
+      }
+
+      final biometricEnabled = AppConfig.canSkipSetup
+          ? false
+          : await _repository
+              .isBiometricEnabled()
+              .timeout(const Duration(seconds: 5), onTimeout: () => false);
+      final pendingRoute = await _repository
+          .loadPendingRoute()
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
+      state = AuthState(
+        status: biometricEnabled ? AuthStatus.biometricLocked : AuthStatus.authenticated,
+        session: session,
+        pendingRoute: pendingRoute,
+      );
+    } catch (_) {
+      if (AppConfig.canSkipSetup) {
+        final session = await _repository.seedDevSession();
+        state = AuthState(status: AuthStatus.authenticated, session: session);
+        return;
+      }
+
       state = const AuthState(status: AuthStatus.unauthenticated);
-      return;
     }
-
-    final biometricEnabled = await _repository.isBiometricEnabled();
-    final pendingRoute = await _repository.loadPendingRoute();
-
-    state = AuthState(
-      status: biometricEnabled ? AuthStatus.biometricLocked : AuthStatus.authenticated,
-      session: session,
-      pendingRoute: pendingRoute,
-    );
   }
 
   Future<AuthSession> completeConnect(String connectToken) async {
@@ -120,6 +153,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> lockForBiometric() async {
+    if (AppConfig.canSkipSetup) return;
     if (state.session == null) return;
     final enabled = await _repository.isBiometricEnabled();
     if (!enabled) return;

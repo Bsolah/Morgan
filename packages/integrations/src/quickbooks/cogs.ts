@@ -14,24 +14,6 @@ export function emptyCategoryTotals(): QuickBooksCategoryTotals {
   };
 }
 
-export function sumPnlByCategory(
-  lines: QuickBooksPnlLine[],
-  categoryByAccountId: Map<string, QuickBooksMorganCategory>,
-  categoryByAccountName: Map<string, QuickBooksMorganCategory>,
-): QuickBooksCategoryTotals {
-  const totals = emptyCategoryTotals();
-
-  for (const line of lines) {
-    const category =
-      (line.account_id ? categoryByAccountId.get(line.account_id) : undefined) ??
-      categoryByAccountName.get(line.account_name.toLowerCase()) ??
-      "unmapped";
-    totals[category] += Math.abs(line.amount);
-  }
-
-  return totals;
-}
-
 export function computeQboCogsRate(cogsTotal: number, revenueBase: number): number | null {
   if (revenueBase <= 0 || cogsTotal < 0) return null;
   const rate = cogsTotal / revenueBase;

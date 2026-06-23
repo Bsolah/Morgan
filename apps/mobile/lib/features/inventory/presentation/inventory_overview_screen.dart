@@ -34,9 +34,9 @@ class _InventoryOverviewScreenState extends ConsumerState<InventoryOverviewScree
       backgroundColor: p.background,
       body: SafeArea(
         child: healthAsync.when(
-          loading: () => const ListView(
-            padding: EdgeInsets.all(MorganSpace.screenH),
-            children: [MorganProfitSectionSkeleton(cardCount: 3)],
+          loading: () => ListView(
+            padding: const EdgeInsets.all(MorganSpace.screenH),
+            children: const [MorganProfitSectionSkeleton(cardCount: 3)],
           ),
           error: (error, _) => Center(
             child: Padding(

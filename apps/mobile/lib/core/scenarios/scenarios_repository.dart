@@ -169,7 +169,7 @@ class InventoryPurchaseRunResult {
     this.runwayWarning = false,
     this.stockoutDateAfterPurchase,
     this.savedScenarioId,
-    this.raw,
+    required this.raw,
   });
 
   final String referenceDay;

@@ -1,50 +1,35 @@
 import 'dart:io';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../storage/secure_storage.dart';
 import '../../routing/app_router.dart';
 import '../auth/auth_controller.dart';
 import '../navigation/morgan_deep_link.dart';
-import 'firebase_options.dart';
 import 'notifications_repository.dart';
 
 const _pushInstallTokenKey = 'morgan_push_install_token';
 
 class PushNotificationService {
   PushNotificationService(this._ref, {FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ?? morganSecureStorage;
 
   final Ref _ref;
   final FlutterSecureStorage _storage;
   bool _initialized = false;
   String? _lastRegisteredToken;
 
+  /// Set `--dart-define=FIREBASE_ENABLED=true` once FCM pods are configured.
   static const firebaseEnabled = bool.fromEnvironment('FIREBASE_ENABLED', defaultValue: false);
 
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
 
-    if (firebaseEnabled && !kIsMobilePlatform) {
-      return;
-    }
-
-    if (firebaseEnabled && kIsMobilePlatform) {
-      try {
-        await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-        await FirebaseMessaging.instance.requestPermission();
-        FirebaseMessaging.onTokenRefresh.listen(_registerToken);
-        FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteMessage);
-        final initial = await FirebaseMessaging.instance.getInitialMessage();
-        if (initial != null) {
-          _handleRemoteMessage(initial);
-        }
-      } catch (_) {
-        // Firebase config missing — fall back to install token registration below.
-      }
+    if (firebaseEnabled) {
+      // FCM wiring lands with production Firebase config (requires CocoaPods 1.12+).
+      // Local dev uses install-scoped tokens below.
     }
 
     final auth = _ref.read(authControllerProvider);
@@ -80,17 +65,6 @@ class PushNotificationService {
   }
 
   Future<String?> _resolveToken() async {
-    if (firebaseEnabled && kIsMobilePlatform) {
-      try {
-        final fcmToken = await FirebaseMessaging.instance.getToken();
-        if (fcmToken != null && fcmToken.isNotEmpty) {
-          return fcmToken;
-        }
-      } catch (_) {
-        // Fall through to install-scoped token for local dev.
-      }
-    }
-
     return _installScopedToken();
   }
 
@@ -105,8 +79,8 @@ class PushNotificationService {
     return token;
   }
 
-  void _handleRemoteMessage(RemoteMessage message) {
-    final path = resolveMorganDeepLinkFromData(message.data);
+  void handleNotificationData(Map<String, dynamic> data) {
+    final path = resolveMorganDeepLinkFromData(data);
     if (path == null) return;
     _ref.read(appRouterProvider).go(path);
   }

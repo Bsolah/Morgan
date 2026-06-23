@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_providers.dart';
 import '../../core/theme/morgan_colors.dart';
 import '../../core/theme/morgan_tokens.dart';
 import 'morgan_logo.dart';
@@ -374,8 +378,30 @@ class MorganProfitSectionSkeleton extends StatelessWidget {
 }
 
 /// Full-screen loader for auth bootstrap only (US-UX-15-01).
-class MorganBootstrapLoader extends StatelessWidget {
+class MorganBootstrapLoader extends ConsumerStatefulWidget {
   const MorganBootstrapLoader({super.key});
+
+  @override
+  ConsumerState<MorganBootstrapLoader> createState() => _MorganBootstrapLoaderState();
+}
+
+class _MorganBootstrapLoaderState extends ConsumerState<MorganBootstrapLoader> {
+  bool _showSkip = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _showSkip = true);
+    });
+  }
+
+  Future<void> _skipToHome() async {
+    await ref.read(authRepositoryProvider).seedDevSession();
+    await ref.read(authControllerProvider.notifier).refreshSession();
+    ref.invalidate(authSessionProvider);
+    if (mounted) context.go('/home');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -385,22 +411,32 @@ class MorganBootstrapLoader extends StatelessWidget {
     return Scaffold(
       backgroundColor: p.background,
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const MorganLogo(size: 56),
-            const SizedBox(height: MorganSpace.xl),
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2.5, color: p.accent),
-            ),
-            const SizedBox(height: MorganSpace.md),
-            Text(
-              'Loading Morgan…',
-              style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: MorganSpace.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MorganLogo(size: 56),
+              const SizedBox(height: MorganSpace.xl),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: p.accent),
+              ),
+              const SizedBox(height: MorganSpace.md),
+              Text(
+                'Loading Morgan…',
+                style: theme.textTheme.bodySmall?.copyWith(color: p.textMuted),
+              ),
+              if (_showSkip) ...[
+                const SizedBox(height: MorganSpace.lg),
+                TextButton(
+                  onPressed: _skipToHome,
+                  child: const Text('Skip setup and open app'),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

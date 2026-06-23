@@ -144,8 +144,9 @@ class _CashProjectionPainter extends CustomPainter {
       ..strokeWidth = 2.5;
     canvas.drawPath(path, linePaint);
 
-    if (zeroIndex != null) {
-      final x = padding + (chartWidth / (points.length - 1)) * zeroIndex;
+    final index = zeroIndex;
+    if (index != null) {
+      final x = padding + (chartWidth / (points.length - 1)) * index;
       final dotPaint = Paint()..color = zeroColor;
       canvas.drawCircle(Offset(x, zeroY), 5, dotPaint);
     }

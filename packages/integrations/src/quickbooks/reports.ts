@@ -161,12 +161,3 @@ export async function fetchQuickBooksDeposits(opts: {
   });
 }
 
-export function monthToDateRange(referenceDay = new Date()): { startDate: string; endDate: string } {
-  const endDate = referenceDay.toISOString().slice(0, 10);
-  const startDate = `${endDate.slice(0, 7)}-01`;
-  return { startDate, endDate };
-}
-
-export function periodMonthFromDay(day: string): string {
-  return day.slice(0, 7);
-}

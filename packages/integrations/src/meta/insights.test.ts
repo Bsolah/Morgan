@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chunkDateRange, META_INSIGHT_LEVELS } from "./insights.js";
+import { chunkDateRange } from "../google-ads/insights.js";
+import { META_INSIGHT_LEVELS } from "./insights.js";
 
 describe("meta insights helpers", () => {
   it("chunks a date range into windows", () => {

@@ -24,9 +24,9 @@ class MarketingMerTab extends ConsumerWidget {
     final merAsync = ref.watch(marketingMerProvider);
 
     return merAsync.when(
-      loading: () => const ListView(
-        padding: EdgeInsets.all(MorganSpace.screenH),
-        children: [MorganProfitSectionSkeleton(cardCount: 2)],
+      loading: () => ListView(
+        padding: const EdgeInsets.all(MorganSpace.screenH),
+        children: const [MorganProfitSectionSkeleton(cardCount: 2)],
       ),
       error: (_, __) => ListView(
         padding: const EdgeInsets.all(MorganSpace.screenH),

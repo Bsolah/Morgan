@@ -63,7 +63,7 @@ async function parseMetaTokenResponse(
   return body;
 }
 
-export async function exchangeAuthorizationCode(opts: {
+export async function exchangeMetaAuthorizationCode(opts: {
   appId: string;
   appSecret: string;
   redirectUri: string;

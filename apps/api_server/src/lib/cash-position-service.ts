@@ -1,4 +1,5 @@
-import { and, eq, gte, lte, plaidTransactions, stores, type Database } from "@morgan/db";
+import { plaidTransactions, stores, type Database } from "@morgan/db";
+import { and, eq, gte, lte } from "drizzle-orm";
 import {
   buildDailyCashFlowBreakdown,
   buildTrailingDayWindow,

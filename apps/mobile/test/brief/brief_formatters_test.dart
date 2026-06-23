@@ -68,6 +68,8 @@ void main() {
         ),
         isTrue,
       );
+    });
+
     test('highlights negative currency and percentages in narrative', () {
       const narrative =
           'Margin slipped to 38%. You lost \$1,240 on returns and saw -4.2% vs prior week, below target.';

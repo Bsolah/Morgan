@@ -2,12 +2,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../storage/secure_storage.dart';
 
 const _onboardingCompletedKey = 'morgan_onboarding_completed';
 
 class OnboardingRepository {
   OnboardingRepository({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ?? morganSecureStorage;
 
   final FlutterSecureStorage _storage;
 

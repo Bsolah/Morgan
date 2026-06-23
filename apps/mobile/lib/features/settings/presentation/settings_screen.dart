@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_controller.dart';
-import '../../../core/auth/auth_repository.dart';
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/biometric_service.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/inventory/inventory_config_repository.dart';

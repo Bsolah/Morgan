@@ -82,7 +82,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return null;
 
         case AuthStatus.authenticated:
-          if (isOnboarding || isUnlock) {
+          if (isBootstrap || isOnboarding || isUnlock) {
             final pending = auth.pendingRoute;
             if (pending != null && pending.isNotEmpty) return pending;
             return '/home';
